@@ -320,8 +320,8 @@ namespace aspect
       {
         //It should be possible to make the free surface work with any of a number of nonlinear
         //schemes, but I do not see a way to do it in generality --IR
-        AssertThrow( parameters.nonlinear_solver == NonlinearSolver::IMPES,
-                     ExcMessage("The free surface scheme is only implemented for the IMPES solver") );
+        AssertThrow( parameters.nonlinear_solver == NonlinearSolver::IMPES || parameters.nonlinear_solver == NonlinearSolver::iterated_Stokes, 
+                     ExcMessage("The free surface scheme is only implemented for the IMPES solver") );//MRTF Added iterated stokes
         //Pressure normalization doesn't really make sense with a free surface, and if we do
         //use it, we can run into problems with geometry_model->depth().
         AssertThrow ( parameters.pressure_normalization == "no",
@@ -1498,7 +1498,7 @@ namespace aspect
                 rebuild_stokes_matrix = rebuild_stokes_preconditioner = true;
 
               assemble_stokes_system();
-              if (iteration == 0)
+              //MRTF //if (iteration == 0)
                 build_stokes_preconditioner();
 
               const double stokes_residual = solve_stokes();
@@ -1543,6 +1543,11 @@ namespace aspect
 
         case NonlinearSolver::iterated_Stokes:
         {
+		
+		///MRTF: add free surface
+		          if (parameters.free_surface_enabled)
+            free_surface->execute ();
+		/// MRTF: add free surface
           // solve the temperature system once...
           assemble_advection_system (AdvectionField::temperature());
           build_advection_preconditioner (AdvectionField::temperature (),
