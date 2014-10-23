@@ -40,7 +40,7 @@ namespace aspect
     { 
       if(this->get_dof_handler().n_dofs() != 0){
 	
-      /// gether all information onthe state of the system ///
+      /// Gather all information on the state of the system ///
       LinearAlgebra::BlockVector vec_distributed (this->introspection().index_sets.system_partitioning,
                                                   this->get_mpi_communicator());
 
@@ -104,14 +104,14 @@ namespace aspect
 		{
 		if(isoterms[it1][0].compare(0,3,"max")==0){ 
 	      if(isoterms[it1][0].compare(0,4,"max-")==0){
-		std::vector<string> tmpNumber = Utilities::split_string_list(isoterms[it1][0],'-');
+		std::vector<std::string> tmpNumber = Utilities::split_string_list(isoterms[it1][0],'-');
 		isoterms_i[it1][0]=maximum_refinement_level-Utilities::string_to_int(tmpNumber[1]);
 	      }else{
 		isoterms_i[it1][0]=maximum_refinement_level;
 	      }
 	    }else if(isoterms[it1][0].compare(0,3,"min")==0){
 	       if(isoterms[it1][0].compare(0,4,"min+")==0){
-		std::vector<string> tmpNumber = Utilities::split_string_list(isoterms[it1][0],'+');
+		std::vector<std::string> tmpNumber = Utilities::split_string_list(isoterms[it1][0],'+');
 		isoterms_i[it1][0]=minimum_refinement_level+Utilities::string_to_int(tmpNumber[1]);
 	      }else{
 		isoterms_i[it1][0]=minimum_refinement_level;
@@ -136,14 +136,14 @@ namespace aspect
 	    
 	    if(isoterms[it1][1].compare(0,3,"max")==0){ 
 	      if(isoterms[it1][1].compare(0,4,"max-")==0){
-		std::vector<string> tmpNumber = Utilities::split_string_list(isoterms[it1][1],'-');
+		std::vector<std::string> tmpNumber = Utilities::split_string_list(isoterms[it1][1],'-');
 		isoterms_i[it1][1]=maximum_refinement_level-Utilities::string_to_int(tmpNumber[1]);
 	      }else{
 		isoterms_i[it1][1]=maximum_refinement_level;
 	      }
 	    }else if(isoterms[it1][1].compare(0,3,"min")==0){
 	       if(isoterms[it1][1].compare(0,4,"min+")==0){
-		std::vector<string> tmpNumber = Utilities::split_string_list(isoterms[it1][1],'+');
+		std::vector<std::string> tmpNumber = Utilities::split_string_list(isoterms[it1][1],'+');
 		isoterms_i[it1][1]=minimum_refinement_level-Utilities::string_to_int(tmpNumber[1]);
 	      }else{
 		isoterms_i[it1][1]=minimum_refinement_level;
@@ -175,7 +175,7 @@ namespace aspect
 		//for(unsigned int j=0; j<isoterms[3].size();++j){
 		  //std::cout << "isoterms 3j: " << isoterms[it1][3] << "," << isoterms[it1][2] << std::endl;//<< "," << n_isoterms_inner[1]<< "," << n_isoterms_inner[0] << ",temp: " << in.temperature[i] << std::endl;
 		  //std::cout << "level " << it1 << "," << cell->level() <<  ": " << isoterms_i[it1][0] << ", " << isoterms_i[it1][1] << std::endl;
-		  if(i_excludeComposition>0){
+		  if(i_excludeComposition>0 && i_excludeComposition<=this->n_compositional_fields()){
                 if(rint(in.temperature[i]) <= Utilities::string_to_int(isoterms[it1][3]) && rint(in.temperature[i]) >= Utilities::string_to_int(isoterms[it1][2]) && in.composition[it1][i_excludeComposition]<0.5){
 		   
                     ///min
@@ -262,8 +262,8 @@ namespace aspect
            * of spherical coordinates is r,phi,theta and not r,theta,phi, since
            * this allows for dimension independent expressions.
            */
-          prm.declare_entry ("i_excludeComposition", "-1",
-                             Patterns::Double (0),
+          prm.declare_entry ("Exclude composition", "-1",
+                             Patterns::Double (),
                              "Number of mininum and maximum areas defined by isoterms are going to be defined."
                              );
 		  prm.declare_entry ("List of isoterms", "",
@@ -294,11 +294,11 @@ namespace aspect
 	maximum_refinement_level = Utilities::string_to_int(prm.get("Initial global refinement")) + Utilities::string_to_int(prm.get("Initial adaptive refinement"));
         prm.enter_subsection("Isoterms");
         {
-		
+		i_excludeComposition = Utilities::string_to_int(prm.get("Exclude composition"));
 		///////////////////////////////////////////////////////////////////////////////////////////
 		n_isoterms_outer = Utilities::split_string_list(prm.get ("List of isoterms"),';');
 	  int size_element = n_isoterms_outer.size();
-	  isoterms.resize(size_element,std::vector<string>(4,"0"));
+	  isoterms.resize(size_element,std::vector<std::string>(4,"0"));
 	  for ( unsigned int it1 = 0; it1 != n_isoterms_outer.size(); ++it1 )
 	  {
 	    n_isoterms_inner = Utilities::split_string_list(n_isoterms_outer[it1]);

@@ -66,12 +66,13 @@ namespace aspect
         parse_parameters (ParameterHandler &prm);
 
      private:
-	std::vector<std::vector<string> > isoterms;
+        signed int i_excludeComposition;
+	std::vector<std::vector<std::string> > isoterms;
 	//std::vector<std::vector<double> > isoterms_i;
-	std::vector<string> n_isoterms_inner;
+	std::vector<std::string> n_isoterms_inner;
 	unsigned int minimum_refinement_level;
 	unsigned int maximum_refinement_level;
-	std::vector<string> n_isoterms_outer;
+	std::vector<std::string> n_isoterms_outer;
   
     };
   }
