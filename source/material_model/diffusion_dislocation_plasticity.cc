@@ -144,8 +144,6 @@ namespace aspect
       const double edot_ii = std::max(std::sqrt(std::fabs(second_invariant(deviator(strain_rate)))),
                                       min_strain_rate * min_strain_rate);
 
-      const double n_limit = 50;
-      const double stress_limit = 1;
       
       // Find effective viscosities for each of the individual phases
       // Viscosities should have same number of entries as compositional fields
@@ -184,7 +182,7 @@ namespace aspect
                                      std::pow(stress_ii, stress_exponents_diffusion[j]) +
                                      prefactor_stress_dislocation *
                                      std::pow(stress_ii, stress_exponents_dislocation[j]) +
-                                     n_limit * std::pow((stress_ii/stress_limit),n_limit) - edot_ii;
+                                     strain_rate_limit * std::pow((stress_ii/yield_stress[j]),n_limit) - edot_ii;
 
               strain_rate_deriv = stress_exponents_diffusion[j] *
                                   prefactor_stress_diffusion *
@@ -192,7 +190,7 @@ namespace aspect
                                   stress_exponents_dislocation[j] *
                                   prefactor_stress_dislocation *
                                   std::pow(stress_ii, stress_exponents_dislocation[j]-1) +
-                                  n_limit * (min_strain_rate / stress_limit) * std::pow((stress_ii / stress_limit),n_limit-1) ;
+                                  n_limit * (strain_rate_limit / yield_stress[j]) * std::pow((stress_ii / yield_stress[j]),n_limit-1) ;
 
               stress_ii -= strain_rate_residual/strain_rate_deriv;
               stress_iteration += 1;
@@ -425,7 +423,7 @@ namespace aspect
 
       prm.enter_subsection("Material model");
       {
-        prm.enter_subsection ("Diffusion dislocation");
+        prm.enter_subsection ("Diffusion dislocation plasticity");
         {
           // Initialise empty vector for compositional field variables
           std::vector<double> x_values;
