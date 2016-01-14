@@ -247,6 +247,50 @@ namespace aspect
 
 
     /**
+      * A base class for additional output fields to be added to the
+      * MaterialModel::MaterialModelOutputs structure and filled in the
+      * MaterialModel::Interface::evaluate() function. The format of the
+      * additional quantities defined in derived classes should be the
+      * same as for MaterialModel::MaterialModelOutputs.
+      */
+     template<int dim>
+     class AdditionalMaterialOutputs
+     {
+       public:
+         virtual ~AdditionalMaterialOutputs()
+         {}
+     };
+
+     template <int dim>
+     struct MaterialModelDerivatives : public AdditionalMaterialOutputs<dim>
+     {
+       /**
+        * Constructor. Initialize the various arrays of this structure with the
+        * given number of quadrature points and (finite element) components.
+        *
+        * @param n_points The number of quadrature points for which input
+        * quantities will be provided.
+        * @param n_comp The number of vector quantities (in the order in which
+        * the Introspection class reports them) for which input will be
+        * provided.
+        */
+       MaterialModelDerivatives (const unsigned int n_points,
+                                 const unsigned int n_comp);
+
+       /**
+        * The derivatives of the viscosities
+        */
+       std::vector<double> dviscosities_du;
+       std::vector<double> dviscosities_dp;
+       std::vector<SymmetricTensor<2,dim> > dviscosities_dstrain_rate;
+
+       /**
+        * The derivatives of the densisties
+        */
+       std::vector<double> ddensities_dp;
+     };
+
+     /**
      * A data structure with the output field of the
      * MaterialModel::Interface::evaluate() function. The vectors are the
      * values at the different positions given by
