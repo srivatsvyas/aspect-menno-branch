@@ -87,6 +87,18 @@ namespace aspect
                        "steps. This does not include the last refinement step before moving to timestep 1. "
                        "When this parameter has a larger value than max nonlinear iterations, the latter is used.");
 
+    prm.declare_entry ("Max pre-Newton nonlinear iterations", "10",
+                       Patterns::Integer (0),
+                       "The minimum number of Piccard nonlinear iterations to be performed, "
+                       "before switching to Newton iterations. This is only used in the case "
+                       "That the Nonlinear solver scheme is set to a Newton type of solver.");
+
+    prm.declare_entry ("Max Newton line search iterations", "5",
+                       Patterns::Integer (0),
+                       "The minimum number of Piccard nonlinear iterations to be performed, "
+                       "before switching to Newton iterations. This is only used in the case "
+                       "That the Nonlinear solver scheme is set to a Newton type of solver.");
+
     prm.declare_entry ("Start time", "0",
                        Patterns::Double (),
                        "The start time of the simulation. Units: Years if the "
@@ -151,7 +163,7 @@ namespace aspect
                        "heat conduction in determining the length of each time step.");
 
     prm.declare_entry ("Nonlinear solver scheme", "IMPES",
-                       Patterns::Selection ("IMPES|iterated IMPES|iterated Stokes|Stokes only|Advection only"),
+                       Patterns::Selection ("IMPES|iterated IMPES|iterated Stokes|Stokes only|Newton Stokes|Advection only"),
                        "The kind of scheme used to resolve the nonlinearity in the system. "
                        "'IMPES' is the classical IMplicit Pressure Explicit Saturation scheme "
                        "in which ones solves the temperatures and Stokes equations exactly "
@@ -173,6 +185,13 @@ namespace aspect
                        "will iterate. This parameter is only relevant if "
                        "Nonlinear solver scheme is set to 'iterated Stokes' or "
                        "'iterated IMPES'.");
+
+    prm.declare_entry ("Nonlinear Newton solver switch tolerance", "1e-5",
+                       Patterns::Double(0,1),
+                       "A relative tolerance up to which the nonlinear Piccard solver "
+                       "will iterate, before changing to the newton solver. This parameter "
+                       "is only relevant if Nonlinear solver scheme is set to a Newton type "
+                       "of solver.");
 
     prm.declare_entry ("Pressure normalization", "surface",
                        Patterns::Selection ("surface|volume|no"),
@@ -266,6 +285,11 @@ namespace aspect
                        "value should be sufficient. In fact, a tolerance of 1e-4 "
                        "might be accurate enough.");
 
+    prm.declare_entry ("Minimum linear solver tolerance", "1e-2",
+                       Patterns::Double(0,1),
+                       "This defines the minimum linear solver tolerance to be used "
+                       "by the oversolving protection of the Newton solver.");
+
     prm.declare_entry ("Linear solver A block tolerance", "1e-2",
                        Patterns::Double(0,1),
                        "A relative tolerance up to which the approximate inverse of the A block "
@@ -278,6 +302,22 @@ namespace aspect
                        "(Schur complement matrix, $S = BA^{-1}B^{T}$) of the Stokes system is computed. "
                        "This approximate inverse of the S block is used in the preconditioning "
                        "used in the GMRES solver.");
+
+    prm.declare_entry ("AMG smoother type", "Chebyshev",
+                       Patterns::Selection ("Chebyshev|symmetric Gauss-Seidel"),
+                       "TODO");
+
+    prm.declare_entry ("AMG smoother sweeps", "2",
+                       Patterns::Integer(0),
+                       "TODO");
+
+    prm.declare_entry ("AMG aggregation threshold", "0.001",
+                       Patterns::Double(0,1),
+                       "TODO");
+
+    prm.declare_entry ("AMG output details", "false",
+                       Patterns::Bool(),
+                       "TODO");
 
     prm.declare_entry ("Number of cheap Stokes solver steps", "200",
                        Patterns::Integer(0),
@@ -918,15 +958,22 @@ namespace aspect
       nonlinear_solver = NonlinearSolver::iterated_Stokes;
     else if (prm.get ("Nonlinear solver scheme") == "Stokes only")
       nonlinear_solver = NonlinearSolver::Stokes_only;
+    else if (prm.get ("Nonlinear solver scheme") == "Newton Stokes")
+      nonlinear_solver = NonlinearSolver::NewtonStokes;
     else if (prm.get ("Nonlinear solver scheme") == "Advection only")
       nonlinear_solver = NonlinearSolver::Advection_only;
     else
       AssertThrow (false, ExcNotImplemented());
 
     nonlinear_tolerance = prm.get_double("Nonlinear solver tolerance");
+    nonlinear_switch_tolerance = prm.get_double("Nonlinear Newton solver switch tolerance");
 
     max_nonlinear_iterations = prm.get_integer ("Max nonlinear iterations");
     max_nonlinear_iterations_in_prerefinement = prm.get_integer ("Max nonlinear iterations in pre-refinement");
+    max_pre_newton_nonlinear_iterations = prm.get_integer ("Max pre-Newton nonlinear iterations");
+    max_newton_line_search_iterations = prm.get_integer ("Max Newton line search iterations");
+
+
 
     start_time              = prm.get_double ("Start time");
     if (convert_to_years == true)
@@ -961,17 +1008,22 @@ namespace aspect
                              "did not detect its presence when you called 'cmake'."));
 #endif
 
-    surface_pressure                = prm.get_double ("Surface pressure");
-    adiabatic_surface_temperature   = prm.get_double ("Adiabatic surface temperature");
-    pressure_normalization          = prm.get("Pressure normalization");
+    surface_pressure                       = prm.get_double ("Surface pressure");
+    adiabatic_surface_temperature          = prm.get_double ("Adiabatic surface temperature");
+    pressure_normalization                 = prm.get("Pressure normalization");
 
-    use_direct_stokes_solver        = prm.get_bool("Use direct solver for Stokes system");
-    linear_stokes_solver_tolerance  = prm.get_double ("Linear solver tolerance");
-    linear_solver_A_block_tolerance = prm.get_double ("Linear solver A block tolerance");
-    linear_solver_S_block_tolerance = prm.get_double ("Linear solver S block tolerance");
-    n_cheap_stokes_solver_steps     = prm.get_integer ("Number of cheap Stokes solver steps");
-    temperature_solver_tolerance    = prm.get_double ("Temperature solver tolerance");
-    composition_solver_tolerance    = prm.get_double ("Composition solver tolerance");
+    use_direct_stokes_solver               = prm.get_bool("Use direct solver for Stokes system");
+    linear_stokes_solver_tolerance         = prm.get_double ("Linear solver tolerance");
+    minimum_linear_stokes_solver_tolerance = prm.get_double("Minimum linear solver tolerance");
+    linear_solver_A_block_tolerance        = prm.get_double ("Linear solver A block tolerance");
+    linear_solver_S_block_tolerance        = prm.get_double ("Linear solver S block tolerance");
+    AMG_smoother_type                      = prm.get ("AMG smoother type");
+    AMG_smoother_sweeps                    = prm.get_integer ("AMG smoother sweeps");
+    AMG_aggregation_threshold              = prm.get_double ("AMG aggregation threshold");
+    AMG_output_details                     = prm.get_bool ("AMG output details");
+    n_cheap_stokes_solver_steps            = prm.get_integer ("Number of cheap Stokes solver steps");
+    temperature_solver_tolerance           = prm.get_double ("Temperature solver tolerance");
+    composition_solver_tolerance           = prm.get_double ("Composition solver tolerance");
 
     prm.enter_subsection ("Mesh refinement");
     {

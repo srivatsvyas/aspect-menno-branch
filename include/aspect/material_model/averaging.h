@@ -23,6 +23,7 @@
 
 #include <aspect/material_model/interface.h>
 #include <aspect/simulator_access.h>
+#include <aspect/newton.h>
 
 namespace aspect
 {
@@ -151,6 +152,17 @@ namespace aspect
         average (const AveragingOperation averaging_operation,
                  const std::vector<Point<dim> >    &position,
                  std::vector<double>           &values_out) const;
+        /**
+        * Given the averaging @p operation, a description of where the
+        * quadrature points are located on the given cell, and a mapping,
+        * perform this operation on all elements of the @p values structure.
+        * This version is specifically for averaging of derivatives.
+        */
+        void
+        average_derivatives (const AveragingOperation averaging_operation,
+                             const std::vector<Point<dim> >        &position,
+                             std::vector<double>                   &values_out,
+                             std::vector<SymmetricTensor<2,dim> >  &derivatives_out) const;
         /**
          * The bell shape limit variable stores the maximum extend of the bell
          * shape for the Normalized Weighed Distance (NWD) averages.

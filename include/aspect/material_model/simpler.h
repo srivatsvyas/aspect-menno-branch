@@ -22,6 +22,7 @@
 #define _aspect_material_model_simpler_h
 
 #include <aspect/material_model/interface.h>
+#include <aspect/newton.h>
 
 namespace aspect
 {

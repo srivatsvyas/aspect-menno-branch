@@ -353,10 +353,11 @@ namespace aspect
           // processors
           catch (const std::exception &exc)
             {
+              double utmpl2norm = utmp.l2_norm();
               if (Utilities::MPI::this_mpi_process(src.block(0).get_mpi_communicator()) == 0)
                 AssertThrow (false,
                              ExcMessage (std::string("The iterative (top left) solver in BlockSchurPreconditioner::vmult "
-                                                     "did not converge. It reported the following error:\n\n")
+                                                     "did not converge with tolerance = " + std::to_string(utmpl2norm * A_block_tolerance) + ". It reported the following error:\n\n")
                                          +
                                          exc.what()))
                 else
@@ -673,11 +674,23 @@ namespace aspect
     // the vector remap. We need to do the copy because remap has a different
     // layout than current_linearization_point, which also contains all the
     // other solution variables.
-    remap.block (block_vel) = current_linearization_point.block (block_vel);
 
-    remap.block (block_p) = current_linearization_point.block (block_p);
-    denormalize_pressure (remap, current_linearization_point);
+    if (parameters.nonlinear_solver != NonlinearSolver::NewtonStokes)
+      {
+        remap.block (block_vel) = current_linearization_point.block (block_vel);
 
+        remap.block (block_p) = current_linearization_point.block (block_p);
+
+        denormalize_pressure (remap, current_linearization_point);
+      }
+    else
+      {
+        remap.block (block_vel) = 0;
+        remap.block (block_p) = 0;
+      }
+
+
+    // before solving we scale the initial solution to the right dimensions
     current_constraints.set_zero (remap);
     remap.block (block_p) /= pressure_scaling;
 
@@ -721,6 +734,7 @@ namespace aspect
     // create Solver controls for the cheap and expensive solver phase
     SolverControl solver_control_cheap (parameters.n_cheap_stokes_solver_steps,
                                         solver_tolerance);
+
     SolverControl solver_control_expensive (system_matrix.block(block_vel,block_p).m() +
                                             system_matrix.block(block_p,block_vel).m(), solver_tolerance);
 
@@ -844,7 +858,6 @@ namespace aspect
 
     remove_nullspace(solution, distributed_stokes_solution);
 
-    normalize_pressure(solution);
 
     // print the number of iterations to screen and record it in the
     // statistics file
@@ -852,9 +865,13 @@ namespace aspect
           << solver_control_expensive.last_step() << " iterations.";
     pcout << std::endl;
 
-    // convert melt pressures:
-    if (parameters.include_melt_transport)
-      melt_handler->compute_melt_variables(solution);
+    if (parameters.nonlinear_solver != NonlinearSolver::NewtonStokes)
+      {
+        normalize_pressure(solution);
+        // convert melt pressures:
+        if (parameters.include_melt_transport)
+          melt_handler->compute_melt_variables(solution);
+      }
 
     statistics.add_value("Iterations for Stokes solver",
                          solver_control_cheap.last_step() + solver_control_expensive.last_step());

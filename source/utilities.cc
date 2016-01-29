@@ -1822,7 +1822,219 @@ namespace aspect
       return lookup->get_data(position,component);
     }
 
-// Explicit instantiations
+    std::vector<double>
+    compute_volume_fractions( const std::vector<double> &compositional_fields)
+    {
+      std::vector<double> volume_fractions( compositional_fields.size()+1);
+
+      //clip the compositional fields so they are between zero and one
+      std::vector<double> x_comp = compositional_fields;
+      for ( unsigned int i=0; i < x_comp.size(); ++i)
+        x_comp[i] = std::min(std::max(x_comp[i], 0.0), 1.0);
+
+      //sum the compositional fields for normalization purposes
+      double sum_composition = 0.0;
+      for ( unsigned int i=0; i < x_comp.size(); ++i)
+        sum_composition += x_comp[i];
+
+      if (sum_composition >= 1.0)
+        {
+          volume_fractions[0] = 0.0;  //background mantle
+          for ( unsigned int i=1; i <= x_comp.size(); ++i)
+            volume_fractions[i] = x_comp[i-1]/sum_composition;
+        }
+      else
+        {
+          volume_fractions[0] = 1.0 - sum_composition; //background mantle
+          for ( unsigned int i=1; i <= x_comp.size(); ++i)
+            volume_fractions[i] = x_comp[i-1];
+        }
+      return volume_fractions;
+    }
+
+    double
+    weighted_p_norm_average ( const std::vector<double> &weights,
+                     const std::vector<double> &parameter_values,
+                     const double p)
+    {
+    	//TODO: prevent devision by zero for all
+      double averaged_parameter = 0.0;
+
+      // first look at the specal case which can be done faster
+      // Minimum
+      if (p <= -1000)
+        {
+          const unsigned int i = (unsigned int)(std::min_element( weights.begin(),
+                                                                  weights.end() )
+                                                - weights.begin());
+          averaged_parameter = parameter_values[i];
+          return averaged_parameter;
+        }
+      // Harmonic average (TODO: Check if we need to use a epsilon)
+      if (p == -1)
+        {
+          for (unsigned int i=0; i< weights.size(); ++i)
+          {
+              if(parameter_values[i] == 0 && weights[i] != 0)
+              return 0;
+              else if(parameter_values[i] !=0)
+        		  averaged_parameter += weights[i]/(parameter_values[i]);
+          }
+          averaged_parameter = 1.0/averaged_parameter;
+          return averaged_parameter;
+        }
+
+      // Geometric average (TODO: Check if we need to use a epsilon)
+      if (p == 0)
+        {
+          for (unsigned int i=0; i < weights.size(); ++i)
+            averaged_parameter += weights[i]*std::log(parameter_values[i]);
+          averaged_parameter = std::exp(averaged_parameter);
+          return averaged_parameter;
+        }
+
+      // Arithmetic average (TODO: Check if we need to use a epsilon)
+      if (p == 1)
+        {
+          for (unsigned int i=0; i< weights.size(); ++i)
+            averaged_parameter += weights[i]*parameter_values[i];
+          return averaged_parameter;
+        }
+
+      // Quadratic average (RMS) (TODO: Check if we need to use a epsilon)
+      if (p == 2)
+        {
+          for (unsigned int i=0; i< weights.size(); ++i)
+            averaged_parameter += weights[i]*parameter_values[i]*parameter_values[i];
+          averaged_parameter = std::sqrt(averaged_parameter);
+          return averaged_parameter;
+        }
+
+      // Cubic average (TODO: Check if we need to use a epsilon)
+      if (p == 3)
+        {
+          for (unsigned int i=0; i< weights.size(); ++i)
+            averaged_parameter += weights[i]*parameter_values[i]*parameter_values[i]*parameter_values[i];
+          averaged_parameter = std::cbrt(averaged_parameter);
+          return averaged_parameter;
+        }
+
+      // Maximum
+      if (p >= 1000)
+        {
+          const unsigned int i = (unsigned int)(std::max_element( weights.begin(),
+                                                                  weights.end() )
+                                                - weights.begin());
+          averaged_parameter = parameter_values[i];
+          return averaged_parameter;
+        }
+
+      for (unsigned int i=0; i< weights.size(); ++i)//{
+      {
+    	  //if(parameter_values[i] == 0 && p < 0)
+    		  //return 0;
+        averaged_parameter += weights[i]*std::pow(parameter_values[i],p);
+      }
+      averaged_parameter = std::pow(averaged_parameter,1/p);
+
+      return averaged_parameter;
+    }
+
+    template <typename T>
+    T
+	derivatives_weighed_p_norm_average (const double averaged_parameter,
+                                        const std::vector<double> &weights,
+                                        const std::vector<double> &parameter_values,
+                                        const std::vector<T> &parameter_derivatives,
+                                        const double p)
+    {
+
+      T averaged_parameter_derivative = T();
+      double averaged_parameter_derivative_part_1 = 0.0;
+      T averaged_parameter_derivative_part_2 = T();
+      std::vector<double> parameter_values_p(weights.size());
+
+      double averaged_parameter_check = 0;
+
+      for (unsigned int i=0; i< weights.size(); ++i)
+        {
+          parameter_values_p[i] = std::pow(parameter_values[i],p);
+        }
+
+
+      // first look at the special case which can be done faster
+      // Minimum
+      if (p <= -1000)
+        {
+          const unsigned int i = (unsigned int)(std::min_element( weights.begin(),
+                                                                  weights.end() )
+                                                - weights.begin());
+          averaged_parameter_derivative = parameter_derivatives[i];
+          return averaged_parameter_derivative;
+        }
+
+      // Harmonic average
+      // Seems to work without a epsilon. TODO: Might be possible to optimize further.
+      if (p == -1)
+        {
+          for (unsigned int i=0; i< weights.size(); ++i)
+            {
+              averaged_parameter_derivative_part_1 += weights[i] * parameter_values_p[i];
+              averaged_parameter_derivative_part_2 += weights[i]*(1/(parameter_values[i]*parameter_values[i]))*parameter_derivatives[i];
+            }
+          averaged_parameter_derivative = std::pow(averaged_parameter_derivative_part_1,-2) * averaged_parameter_derivative_part_2;
+          return averaged_parameter_derivative;
+        }
+
+      // Geometric average
+      // Seems to work without a epsilon. TODO: Might be possible to optimize further.
+      if (p == 0)
+        {
+          for (unsigned int i=0; i < weights.size(); ++i)
+            {
+              averaged_parameter_derivative_part_1 += weights[i]*std::log(parameter_values[i]);
+              averaged_parameter_derivative_part_2 += weights[i]*(1/parameter_values[i])*parameter_derivatives[i];
+            }
+          averaged_parameter_derivative = std::exp(averaged_parameter_derivative_part_1) * averaged_parameter_derivative_part_2;
+          return averaged_parameter_derivative;
+        }
+
+      // Arithmetic average
+      // Seems to work without a epsilon.
+      if (p == 1)
+        {
+          for (unsigned int i=0; i< weights.size(); ++i)
+            averaged_parameter_derivative_part_2 += weights[i]*parameter_derivatives[i];
+          return averaged_parameter_derivative_part_2;
+        }
+
+      // Maximum
+      if (p >= 1000)
+        {
+          const unsigned int i = (unsigned int)(std::max_element( weights.begin(),
+                                                                  weights.end() )
+                                                - weights.begin());
+          averaged_parameter_derivative = parameter_derivatives[i];
+          return averaged_parameter_derivative;
+        }
+
+      //TODO: This can probably be optimized by using:
+      //averaged_parameter_derivative_part_2 += weights[i]*parameter_values_p[i]*(1/parameter_values[i])*parameter_derivatives[i]; and
+      //averaged_parameter_derivative = averaged_parameter * (1/averaged_parameter_derivative_part_1) * averaged_parameter_derivative_part_2;
+      for (unsigned int i=0; i< weights.size(); ++i)
+        {
+          averaged_parameter_derivative_part_1 += weights[i] * parameter_values_p[i];
+          averaged_parameter_derivative_part_2 += weights[i]*std::pow(parameter_values[i],p-1)*parameter_derivatives[i];
+        }
+      averaged_parameter_derivative = std::pow(averaged_parameter_derivative_part_1,(1/p)-1) * averaged_parameter_derivative_part_2;
+      // TODO: find a way to check if value is finite for any type? Or just leave this kind of checking up to the user?
+
+      return averaged_parameter_derivative;
+    }
+
+
+
+    // Explicit instantiations
     template class AsciiDataLookup<1>;
     template class AsciiDataLookup<2>;
     template class AsciiDataLookup<3>;
@@ -1852,5 +2064,29 @@ namespace aspect
 
     template std_cxx11::array<Tensor<1,2>,1> orthogonal_vectors (const Tensor<1,2> &v);
     template std_cxx11::array<Tensor<1,3>,2> orthogonal_vectors (const Tensor<1,3> &v);
+
+
+    template double
+	derivatives_weighed_p_norm_average (const double averaged_parameter,
+                                        const std::vector<double> &weights,
+                                        const std::vector<double> &parameter_values,
+                                        const std::vector<double> &parameter_derivatives,
+                                        const double p);
+
+    template dealii::SymmetricTensor<2, 2, double>
+	derivatives_weighed_p_norm_average (const double averaged_parameter,
+                                        const std::vector<double> &weights,
+                                        const std::vector<double> &parameter_values,
+                                        const std::vector<dealii::SymmetricTensor<2, 2, double> > &parameter_derivatives,
+                                        const double p);
+
+    template dealii::SymmetricTensor<2, 3, double>
+	derivatives_weighed_p_norm_average (const double averaged_parameter,
+                                        const std::vector<double> &weights,
+                                        const std::vector<double> &parameter_values,
+                                        const std::vector<dealii::SymmetricTensor<2, 3, double> > &parameter_derivatives,
+                                        const double p);
+
+
   }
 }

@@ -141,6 +141,14 @@ namespace aspect
 
 
   template <int dim>
+  unsigned int SimulatorAccess<dim>::get_nonlinear_iteration_number () const
+  {
+    return simulator->nonlinear_iteration_number;
+  }
+
+
+
+  template <int dim>
   const parallel::distributed::Triangulation<dim> &
   SimulatorAccess<dim>::get_triangulation () const
   {
@@ -525,6 +533,15 @@ namespace aspect
     Assert (simulator->melt_handler.get() != 0,
             ExcMessage("You can not call this function if melt transport is not enabled."));
     return *(simulator->melt_handler);
+  }
+
+  template <int dim>
+  const NewtonHandler<dim> &
+  SimulatorAccess<dim>::get_newton_handler () const
+  {
+    Assert (simulator->newton_handler.get() != 0,
+            ExcMessage("You can not call this function if Newton solver is not enabled."));
+    return *(simulator->newton_handler);
   }
 
   template <int dim>

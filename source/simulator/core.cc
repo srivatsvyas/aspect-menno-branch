@@ -24,6 +24,7 @@
 #include <aspect/assembly.h>
 #include <aspect/utilities.h>
 #include <aspect/melt.h>
+#include <aspect/newton.h>
 #include <aspect/free_surface.h>
 
 #include <aspect/geometry_model/initial_topography_model/zero_topography.h>
@@ -150,47 +151,48 @@ namespace aspect
     assemblers (new internal::Assembly::AssemblerLists<dim>()),
     parameters (prm, mpi_communicator_),
     melt_handler (parameters.include_melt_transport ? new MeltHandler<dim> (prm) : NULL),
+    newton_handler (parameters.nonlinear_solver == NonlinearSolver::NewtonStokes ? new NewtonHandler<dim> (prm) : NULL),
     post_signal_creation(
-      std_cxx11::bind (&internals::SimulatorSignals::call_connector_functions<dim>,
-                       std_cxx11::ref(signals))),
+     std_cxx11::bind (&internals::SimulatorSignals::call_connector_functions<dim>,
+                      std_cxx11::ref(signals))),
     introspection (construct_variables<dim>(parameters, signals, melt_handler), parameters),
     mpi_communicator (Utilities::MPI::duplicate_communicator (mpi_communicator_)),
     iostream_tee_device(std::cout, log_file_stream),
     iostream_tee_stream(iostream_tee_device),
     pcout (iostream_tee_stream,
-           (Utilities::MPI::
-            this_mpi_process(mpi_communicator)
-            == 0)),
+          (Utilities::MPI::
+           this_mpi_process(mpi_communicator)
+           == 0)),
 
     computing_timer (mpi_communicator,
-                     pcout,
-                     TimerOutput::never,
-                     TimerOutput::wall_times),
+                    pcout,
+                    TimerOutput::never,
+                    TimerOutput::wall_times),
     initial_topography_model(InitialTopographyModel::create_initial_topography_model<dim>(prm)),
     geometry_model (GeometryModel::create_geometry_model<dim>(prm)),
     // make sure the parameters object gets a chance to
     // parse those parameters that depend on symbolic names
     // for boundary components
     post_geometry_model_creation_action (std_cxx11::bind (&Parameters<dim>::parse_geometry_dependent_parameters,
-                                                          std_cxx11::ref(parameters),
-                                                          std_cxx11::ref(prm),
-                                                          std_cxx11::cref(*geometry_model))),
+                                                         std_cxx11::ref(parameters),
+                                                         std_cxx11::ref(prm),
+                                                         std_cxx11::cref(*geometry_model))),
     material_model (MaterialModel::create_material_model<dim>(prm)),
     gravity_model (GravityModel::create_gravity_model<dim>(prm)),
     // create a boundary temperature model, but only if we actually need
     // it. otherwise, allow the user to simply specify nothing at all
     boundary_temperature (parameters.fixed_temperature_boundary_indicators.empty()
-                          ?
-                          0
-                          :
-                          BoundaryTemperature::create_boundary_temperature<dim>(prm)),
+                         ?
+                         0
+                         :
+                         BoundaryTemperature::create_boundary_temperature<dim>(prm)),
     // create a boundary composition model, but only if we actually need
     // it. otherwise, allow the user to simply specify nothing at all
     boundary_composition (parameters.fixed_composition_boundary_indicators.empty()
-                          ?
-                          0
-                          :
-                          BoundaryComposition::create_boundary_composition<dim>(prm)),
+                         ?
+                         0
+                         :
+                         BoundaryComposition::create_boundary_composition<dim>(prm)),
     initial_conditions (InitialConditions::create_initial_conditions<dim>(prm)),
     prescribed_stokes_solution (PrescribedStokesSolution::create_prescribed_stokes_solution<dim>(prm)),
     compositional_initial_conditions (CompositionalInitialConditions::create_initial_conditions<dim>(prm)),
@@ -202,10 +204,10 @@ namespace aspect
     timestep_number (0),
 
     triangulation (mpi_communicator,
-                   typename Triangulation<dim>::MeshSmoothing
-                   (Triangulation<dim>::smoothing_on_refinement |
-                    Triangulation<dim>::smoothing_on_coarsening),
-                   parallel::distributed::Triangulation<dim>::mesh_reconstruction_after_repartitioning),
+                  typename Triangulation<dim>::MeshSmoothing
+                  (Triangulation<dim>::smoothing_on_refinement |
+                   Triangulation<dim>::smoothing_on_coarsening),
+                  parallel::distributed::Triangulation<dim>::mesh_reconstruction_after_repartitioning),
 
     mapping(construct_mapping<dim>(*geometry_model,*initial_topography_model)),
 
@@ -215,6 +217,8 @@ namespace aspect
     dof_handler (triangulation),
 
     rebuild_stokes_matrix (true),
+    assemble_newton_stokes_matrix (true),
+    assemble_newton_stokes_system (false),
     rebuild_stokes_preconditioner (true)
   {
     if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
@@ -519,7 +523,9 @@ namespace aspect
         //It should be possible to make the free surface work with any of a number of nonlinear
         //schemes, but I do not see a way to do it in generality --IR
         AssertThrow( parameters.nonlinear_solver == NonlinearSolver::IMPES ||
-                     parameters.nonlinear_solver == NonlinearSolver::iterated_Stokes,
+                     parameters.nonlinear_solver == NonlinearSolver::iterated_IMPES ||
+                     parameters.nonlinear_solver == NonlinearSolver::iterated_Stokes||
+                     parameters.nonlinear_solver == NonlinearSolver::NewtonStokes,
                      ExcMessage("The free surface scheme is only implemented for the IMPES or Iterated Stokes solver") );
         //Pressure normalization doesn't really make sense with a free surface, and if we do
         //use it, we can run into problems with geometry_model->depth().
@@ -538,6 +544,9 @@ namespace aspect
                      ExcMessage("Melt transport can not be used with discontinuous elements.") );
         AssertThrow( !parameters.free_surface_enabled,
                      ExcMessage("Melt transport together with a free surface has not been tested.") );
+        AssertThrow( parameters.nonlinear_solver != NonlinearSolver::NewtonStokes,
+                     ExcMessage("Melt transport can not be used with the Newton solver."));
+
         melt_handler->initialize_simulator (*this);
       }
 
@@ -827,7 +836,7 @@ namespace aspect
     // end up in the right hand side in the right way; we currently do
     // that by re-assembling the entire system
     if (!velocity_boundary_conditions.empty())
-      rebuild_stokes_matrix = rebuild_stokes_preconditioner = true;
+      rebuild_stokes_matrix = rebuild_stokes_preconditioner = assemble_newton_stokes_matrix = true;
 
 
 
@@ -913,11 +922,22 @@ namespace aspect
                 mask[i]=introspection.component_masks.velocities[i];
             }
 
-          VectorTools::interpolate_boundary_values (dof_handler,
-                                                    p->first,
-                                                    vel,
-                                                    current_constraints,
-                                                    mask);
+          if (!assemble_newton_stokes_system || (assemble_newton_stokes_system && nonlinear_iteration_number == 0))
+            {
+              VectorTools::interpolate_boundary_values (dof_handler,
+                                                        p->first,
+                                                        vel,
+                                                        current_constraints,
+                                                        mask);
+            }
+          else
+            {
+              VectorTools::interpolate_boundary_values (dof_handler,
+                                                        p->first,
+                                                        ZeroFunction<dim>(introspection.n_components),
+                                                        current_constraints,
+                                                        mask);
+            }
         }
     }
 
@@ -2011,6 +2031,7 @@ namespace aspect
 
           assemble_stokes_system();
           build_stokes_preconditioner();
+
           solve_stokes();
 
           if (parameters.run_postprocessors_on_nonlinear_iterations)
@@ -2054,6 +2075,8 @@ namespace aspect
 
               const double stokes_residual = solve_stokes();
 
+              current_linearization_point = solution;
+
               const double relative_tolerance = (initial_stokes_residual > 0) ? stokes_residual/initial_stokes_residual : 0.0;
 
               pcout << "      Relative Stokes residual after nonlinear iteration " << nonlinear_iteration+1
@@ -2081,6 +2104,8 @@ namespace aspect
 
         case NonlinearSolver::iterated_IMPES:
         {
+          if (parameters.free_surface_enabled)
+            free_surface->execute ();
           double initial_temperature_residual = 0;
           double initial_stokes_residual      = 0;
           std::vector<double> initial_composition_residual (parameters.n_compositional_fields,0);
@@ -2295,6 +2320,300 @@ namespace aspect
               pcout << std::endl;
             }
 
+          break;
+        }
+
+
+        case NonlinearSolver::NewtonStokes:
+        {
+          if (parameters.free_surface_enabled)
+            free_surface->execute ();
+
+          double initial_temperature_residual = 0;
+          double initial_stokes_residual      = 0;
+          std::vector<double> initial_composition_residual (parameters.n_compositional_fields,0);
+
+          parameters.nonlinear_iteration_number = 0;
+
+          double max = std::numeric_limits<double>::max();
+
+          double initial_newton_residual_velo = 0;
+          double initial_newton_residual_pres = 0;
+          double initial_newton_residual = 0;
+
+          double newton_residual_velo = 0;
+          double newton_residual_pres = 0;
+          double newton_residual = 0;
+          double newton_residual_old = 0;
+
+          parameters.switch_initial_newton_residual = 1;
+          parameters.newton_residual = 1;
+          parameters.newton_theta = 0;
+
+          const double piccard_linear_stokes_solver_tolerance = parameters.linear_stokes_solver_tolerance;
+
+          bool   use_picard = true;
+
+          for (unsigned int i=0; (! ((i >= parameters.max_nonlinear_iterations) // regular timestep
+                                     ||
+                                     ((pre_refinement_step < parameters.initial_adaptive_refinement) // pre-refinement
+                                      &&
+                                      (i >= parameters.max_nonlinear_iterations_in_prerefinement)))); ++i)
+            {
+              assemble_newton_stokes_system = true;
+
+
+              double stokes_residual = 0;
+
+              solution.block(introspection.block_indices.pressure) = 0;
+              solution.block(introspection.block_indices.velocities) = 0;
+
+              pcout << "Newton iteration number: " << parameters.nonlinear_iteration_number << std::endl;
+
+              assemble_advection_system(AdvectionField::temperature());
+              build_advection_preconditioner(AdvectionField::temperature(),
+                                             T_preconditioner);
+
+              if (parameters.nonlinear_iteration_number == 0)
+                initial_temperature_residual = system_rhs.block(introspection.block_indices.temperature).l2_norm();
+
+              const double temperature_residual = solve_advection(AdvectionField::temperature());
+
+              current_linearization_point.block(introspection.block_indices.temperature)
+                = solution.block(introspection.block_indices.temperature);
+              rebuild_stokes_matrix = true;
+              std::vector<double> composition_residual (parameters.n_compositional_fields,0);
+
+              for (unsigned int c=0; c<parameters.n_compositional_fields; ++c)
+                {
+                  assemble_advection_system (AdvectionField::composition(c));
+                  build_advection_preconditioner(AdvectionField::composition(c),
+                                                 C_preconditioner);
+
+                  if (parameters.nonlinear_iteration_number == 0)
+                    initial_composition_residual[c] = system_rhs.block(introspection.block_indices.compositional_fields[c]).l2_norm();
+
+                  composition_residual[c]
+                    = solve_advection(AdvectionField::composition(c));
+                }
+
+              // for consistency we update the current linearization point only after we have solved
+              // all fields, so that we use the same point in time for every field when solving
+              for (unsigned int c=0; c<parameters.n_compositional_fields; ++c)
+                current_linearization_point.block(introspection.block_indices.compositional_fields[c])
+                  = solution.block(introspection.block_indices.compositional_fields[c]);
+              LinearAlgebra::BlockVector global_backup_linearization_point = current_linearization_point;
+
+              if (use_picard == true && (max <= parameters.nonlinear_switch_tolerance ||
+                                         parameters.nonlinear_iteration_number >= parameters.max_pre_newton_nonlinear_iterations))
+                {
+                  use_picard = false;
+                  pcout << "Switching Newton derivatives on." << std::endl;
+
+                  bool use_said_method = false;
+                  if (!use_said_method)
+                    parameters.newton_residual = 0;
+                }
+
+              parameters.newton_theta = std::max(0.,(1-(parameters.newton_residual/parameters.switch_initial_newton_residual)));
+
+              if (parameters.nonlinear_iteration_number == 0)
+                {
+                  current_linearization_point.block(introspection.block_indices.velocities) = 0;
+
+                  rebuild_stokes_matrix = assemble_newton_stokes_system = true;
+                  rebuild_stokes_preconditioner = false;
+
+                  denormalize_pressure (current_linearization_point,global_backup_linearization_point);
+
+                  compute_current_constraints ();
+                  assemblers.reset (new internal::Assembly::AssemblerLists<dim>());
+                  set_assemblers();
+                  assemble_stokes_system();
+
+                  normalize_pressure(current_linearization_point);
+
+                  initial_newton_residual_velo = system_rhs.block(introspection.block_indices.velocities).l2_norm();
+                  initial_newton_residual_pres = system_rhs.block(introspection.block_indices.pressure).l2_norm();
+                  initial_newton_residual = std::sqrt(initial_newton_residual_velo * initial_newton_residual_velo + initial_newton_residual_pres * initial_newton_residual_pres);
+
+                  current_linearization_point.block(introspection.block_indices.velocities) = global_backup_linearization_point.block(introspection.block_indices.velocities);
+
+                  parameters.switch_initial_newton_residual = initial_newton_residual;
+                  parameters.newton_residual = initial_newton_residual;
+                  pcout << "   Initial Newton Stokes residual = " << initial_newton_residual << ", v = " << initial_newton_residual_velo << ", p = " << initial_newton_residual_pres << std::endl << std::endl;
+                }
+
+              assemble_newton_stokes_system = assemble_newton_stokes_matrix = true;
+
+              denormalize_pressure (current_linearization_point,global_backup_linearization_point);
+
+              compute_current_constraints ();
+
+              // the Stokes matrix depends on the viscosity. if the viscosity
+              // depends on other solution variables, then after we need to
+              // update the Stokes matrix in every time step and so need to set
+              // the following flag. if we change the Stokes matrix we also
+              // need to update the Stokes preconditioner.
+              rebuild_stokes_matrix = rebuild_stokes_preconditioner = assemble_newton_stokes_matrix = true;
+
+              assemble_stokes_system();
+
+              /**
+               * Eisenstat Walker method for determining the tolerance
+               */
+              if (parameters.nonlinear_iteration_number > 1)
+                {
+                  newton_residual_old = newton_residual;
+                  newton_residual_velo = system_rhs.block(introspection.block_indices.velocities).l2_norm();
+                  newton_residual_pres = system_rhs.block(introspection.block_indices.pressure).l2_norm();
+                  newton_residual = std::sqrt(newton_residual_velo * newton_residual_velo + newton_residual_pres * newton_residual_pres);
+
+                  if (!use_picard)
+                    {
+                      const bool EistenstatWalkerChoiceOne = true;
+                      if (EistenstatWalkerChoiceOne)
+                        {
+                          const double powerterm = (1+std::sqrt(5))*0.5;
+                          if (std::pow(parameters.linear_stokes_solver_tolerance,powerterm) <= 0.1)
+                            {
+                              parameters.linear_stokes_solver_tolerance = std::min(parameters.minimum_linear_stokes_solver_tolerance, std::fabs(newton_residual-stokes_residual)/(newton_residual_old));
+                            }
+                          else
+                            {
+                              parameters.linear_stokes_solver_tolerance = std::min(parameters.minimum_linear_stokes_solver_tolerance, std::max( std::fabs(newton_residual-stokes_residual)/newton_residual_old,std::pow(parameters.linear_stokes_solver_tolerance,powerterm)));
+                            }
+                        }
+                      else
+                        {
+                          if (0.9*parameters.linear_stokes_solver_tolerance * parameters.linear_stokes_solver_tolerance <= 0.1)
+                            {
+                              parameters.linear_stokes_solver_tolerance =  std::min(parameters.minimum_linear_stokes_solver_tolerance, 0.9 * std::fabs(newton_residual*newton_residual)/(newton_residual_old*newton_residual_old));
+                            }
+                          else
+                            {
+                              parameters.linear_stokes_solver_tolerance =  std::min(parameters.minimum_linear_stokes_solver_tolerance,
+                                                                                    std::max(0.9 * std::fabs(newton_residual*newton_residual)/(newton_residual_old*newton_residual_old),0.9*parameters.linear_stokes_solver_tolerance*parameters.linear_stokes_solver_tolerance));
+                            }
+                        }
+                      pcout << std::endl << "   The linear solver tolerance is set to " << parameters.linear_stokes_solver_tolerance << ":" << std::fabs(newton_residual-stokes_residual)/newton_residual_old << "," << stokes_residual << "," << newton_residual << ", " << newton_residual_old << std::endl;
+
+                    }
+                }
+              build_stokes_preconditioner();
+
+
+              stokes_residual = solve_stokes();
+
+              /* The following block may be useful for when the newton solver fails. Is this somewthing we want?
+              try
+              {
+                  stokes_residual = solve_stokes();
+              }
+              catch (...)
+              {
+                // first get out of the timing section
+                computing_timer.exit_section();
+                // Newton solver failed. Try Picard instead.
+                use_picard = true;
+                parameters.newton_theta = 0;
+                  rebuild_stokes_matrix = rebuild_stokes_preconditioner = assemble_newton_stokes_matrix = true;
+
+                  assemble_stokes_system();
+
+                  parameters.linear_stokes_solver_tolerance = piccard_linear_stokes_solver_tolerance;
+                  pcout << std::endl << "   Solve failed, set Use Picard to true. and the linear solver tolerance is set to "
+                    << parameters.linear_stokes_solver_tolerance << std::endl;
+
+                  stokes_residual = solve_stokes();
+
+              }*/
+
+              newton_residual_velo = system_rhs.block(introspection.block_indices.velocities).l2_norm();
+              newton_residual_pres = system_rhs.block(introspection.block_indices.pressure).l2_norm();
+              newton_residual = std::sqrt(newton_residual_velo * newton_residual_velo + newton_residual_pres * newton_residual_pres);
+
+              // We may need to do a line search if the solution doesn't decrease the norm of the rhs. TODO: more documentation.
+              LinearAlgebra::BlockVector backup_linearization_point = current_linearization_point;
+
+              double test_newton_residual = 0;
+              double test_newton_residual_velo = 0;
+              double test_newton_residual_pres = 0;
+              double lambda = 1;
+              double alfa = 1e-4;
+              unsigned int line_search_iteration = 0;
+
+              do
+                {
+                  current_linearization_point = backup_linearization_point;
+
+                  LinearAlgebra::BlockVector search_direction = solution;
+
+                  search_direction *= lambda;
+
+
+                  current_linearization_point.block(introspection.block_indices.pressure) += search_direction.block(introspection.block_indices.pressure);
+                  current_linearization_point.block(introspection.block_indices.velocities) += search_direction.block(introspection.block_indices.velocities);
+
+                  assemble_newton_stokes_matrix = rebuild_stokes_preconditioner = false;
+                  rebuild_stokes_matrix = true;
+
+                  assemble_stokes_system();
+
+                  test_newton_residual_velo = system_rhs.block(introspection.block_indices.velocities).l2_norm();
+                  test_newton_residual_pres = system_rhs.block(introspection.block_indices.pressure).l2_norm();
+                  test_newton_residual = std::sqrt(test_newton_residual_velo * test_newton_residual_velo + test_newton_residual_pres * test_newton_residual_pres);
+
+                  if (test_newton_residual < (1.0 - alfa * lambda) * newton_residual || line_search_iteration >= parameters.max_newton_line_search_iterations || use_picard)
+                    {
+                      pcout << newton_residual/initial_newton_residual << "   Norm of rhs = " << newton_residual << ":" << test_newton_residual  << ", relative residual: " << newton_residual/initial_newton_residual << ", theta = " << parameters.newton_theta << std::endl;
+                      break;
+                    }
+                  else
+                    {
+
+                      pcout << "   Iteration " << line_search_iteration << ", with norm of the rhs " << test_newton_residual << " and going to "
+                            << (1.0 - alfa * lambda) * newton_residual << ", relative residual: " << newton_residual/initial_newton_residual << ", theta = " << parameters.newton_theta << std::endl;
+
+                      lambda = lambda * (2.0/3.0);// TODO: make a parameter out of this.
+                    }
+
+                  line_search_iteration++;
+                }
+              while (true);
+
+
+              if (use_picard == true)
+                {
+                  parameters.switch_initial_newton_residual = newton_residual;
+                  parameters.newton_residual = newton_residual;
+                }
+              else
+                {
+                  bool use_said_method = false;
+                  if (use_said_method) //said's method
+                    parameters.newton_residual = test_newton_residual;
+                  else
+                    parameters.newton_residual = 0;
+                }
+
+              newton_residual_old = newton_residual;
+
+
+
+              pcout << std::endl;
+              normalize_pressure(current_linearization_point);
+              ++parameters.nonlinear_iteration_number;
+
+              if (newton_residual/initial_newton_residual < parameters.nonlinear_tolerance)
+                break;
+            }
+
+          pcout << "Final residual: Norm of rhs = " << newton_residual << ", relative residual: " << newton_residual/initial_newton_residual <<  std::endl;
+
+          // When we are ready with iterating, we need to set the final solution to the current linearlization point,
+          // because the solution vector is used in the postprocess.
+          solution = current_linearization_point;
           break;
         }
 

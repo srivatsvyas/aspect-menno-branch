@@ -813,6 +813,32 @@ namespace aspect
          */
         std_cxx11::unique_ptr<aspect::Utilities::AsciiDataLookup<1> > lookup;
     };
+
+
+
+    /**
+     * Volume fraction calculator
+     */
+
+    std::vector<double> compute_volume_fractions( const std::vector<double> &compositional_fields);
+
+    /**
+     * A weighted p norm average caluclator
+     */
+    double weighted_p_norm_average ( const std::vector<double> &composition,
+                            const std::vector<double> &parameter_values,
+                            const double p);
+
+
+    /**
+     * Computes the derivative of values which have been averaged by a weighted p norm.
+     */
+    template<typename T>
+    T derivatives_weighed_p_norm_average (const double averaged_parameter,
+                                                       const std::vector<double> &composition,
+                                                       const std::vector<double> &parameter_values,
+                                                       const std::vector<T> &parameter_derivatives,
+                                                       const double p);
   }
 }
 

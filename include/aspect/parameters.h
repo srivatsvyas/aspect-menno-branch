@@ -68,6 +68,7 @@ namespace aspect
         iterated_IMPES,
         iterated_Stokes,
         Stokes_only,
+        NewtonStokes,
         Advection_only
       };
     };
@@ -302,6 +303,7 @@ namespace aspect
     typename NonlinearSolver::Kind nonlinear_solver;
 
     double                         nonlinear_tolerance;
+    double                         nonlinear_switch_tolerance;
     bool                           resume_computation;
     double                         start_time;
     double                         CFL_number;
@@ -317,11 +319,24 @@ namespace aspect
     double                         linear_stokes_solver_tolerance;
     double                         linear_solver_A_block_tolerance;
     double                         linear_solver_S_block_tolerance;
+    std::string                    AMG_smoother_type;
+    unsigned int                   AMG_smoother_sweeps;
+    double                         AMG_aggregation_threshold;
+    bool                           AMG_output_details;
     unsigned int                   max_nonlinear_iterations;
     unsigned int                   max_nonlinear_iterations_in_prerefinement;
+    unsigned int                   max_pre_newton_nonlinear_iterations;
+    unsigned int                   max_newton_line_search_iterations;
     unsigned int                   n_cheap_stokes_solver_steps;
     double                         temperature_solver_tolerance;
     double                         composition_solver_tolerance;
+
+    /// temporary place it in parameters.h till a better place is found
+    double              newton_residual;
+    double              switch_initial_newton_residual;
+    double              newton_theta;
+    double              minimum_linear_stokes_solver_tolerance;
+    int                 nonlinear_iteration_number;
 
     /**
      * @}

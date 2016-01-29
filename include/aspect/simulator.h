@@ -73,6 +73,9 @@ namespace aspect
   class MeltHandler;
 
   template <int dim>
+  class NewtonHandler;
+
+  template <int dim>
   class FreeSurfaceHandler;
 
   namespace internal
@@ -1201,6 +1204,13 @@ namespace aspect
        */
       std_cxx11::shared_ptr<MeltHandler<dim> > melt_handler;
 
+      /**
+       * Shared pointer for an instance of the NewtonHandler. This way,
+       * if we do not need the machinery for doing melt stuff, we do
+       * not even allocate it.
+       */
+      std_cxx11::shared_ptr<NewtonHandler<dim> > newton_handler;
+
       SimulatorSignals<dim>               signals;
       const IntermediaryConstructorAction post_signal_creation;
       Introspection<dim>                  introspection;
@@ -1396,6 +1406,8 @@ namespace aspect
       std_cxx11::shared_ptr<LinearAlgebra::PreconditionILU>     C_preconditioner;
 
       bool                                                      rebuild_stokes_matrix;
+      bool                                                      assemble_newton_stokes_matrix;
+      bool                                                      assemble_newton_stokes_system;
       bool                                                      rebuild_stokes_preconditioner;
 
       /**
