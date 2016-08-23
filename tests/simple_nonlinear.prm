@@ -1,6 +1,8 @@
 # test that simply verifies that the additional material
 # model outputs can be accessed. 
 
+set Additional shared libraries = tests/libsimple_nonlinear.so
+
 set Dimension = 2
 
 set CFL number                             = 1.0

@@ -2203,7 +2203,8 @@ namespace aspect
         local_assemble_stokes_system_compressible (const double                                     pressure_scaling,
                                                    const bool                                       rebuild_stokes_matrix,
                                                    internal::Assembly::Scratch::StokesSystem<dim>  &scratch,
-                                                   internal::Assembly::CopyData::StokesSystem<dim> &data) const
+                                                   internal::Assembly::CopyData::StokesSystem<dim> &data,
+												   double theta) const
         {
           //TODO: also implement newton for compressible.
           const Introspection<dim> &introspection = this->introspection();
@@ -2291,7 +2292,8 @@ namespace aspect
         local_assemble_stokes_system_incompressible (const double                                     pressure_scaling,
                                                      const bool                                       assemble_newton_stokes_matrix,
                                                      internal::Assembly::Scratch::StokesSystem<dim>  &scratch,
-                                                     internal::Assembly::CopyData::StokesSystem<dim> &data) const
+                                                     internal::Assembly::CopyData::StokesSystem<dim> &data,
+													 double theta) const
         {
           const Introspection<dim> &introspection = this->introspection();
           const unsigned int dofs_per_cell = scratch.finite_element_values.get_fe().dofs_per_cell;
@@ -2323,6 +2325,34 @@ namespace aspect
               derivatives = scratch.material_model_outputs.template get_additional_output<MaterialModel::MaterialModelDerivatives<dim> >();
 
               const SymmetricTensor<2,dim> dviscosities_dstrain_rate = derivatives->dviscosities_dstrain_rate[q];
+
+              /*if (assemble_newton_stokes_matrix)
+              {
+              bool testing = true;
+
+              for (unsigned int sample = 0; sample < 10; ++sample)
+              {
+              Tensor<1,dim> tmp;
+              for (unsigned int i=0; i<dim; ++i)
+              //for (unsigned int j=i; j<dim; ++j)
+              tmp[i] = Utilities::generate_normal_random_number (0, 1);
+
+              const double abc = tmp * (dviscosities_dstrain_rate * tmp);
+              if (abc < 0)
+              {
+            	  testing = false;
+            	  std::cout << sample << " Not SPD: " << abc << "; " << std::flush ;
+              }else
+              {
+            	  if(abc != 0)
+            	  std::cout << abc << std::flush;
+              }
+              }
+              if(testing == false)
+              std::cout << std::endl;
+              }*/
+
+
               const double                 dviscosities_dpressure    = derivatives->dviscosities_dpressure[q];
 
               const SymmetricTensor<4,dim> &stress_strain_director = scratch.material_model_outputs.stress_strain_directors[q];
@@ -2333,7 +2363,9 @@ namespace aspect
 
               const double density = scratch.material_model_outputs.densities[q];
 
-              const double alpha = 1; // TODO:Compute a optimal value for this.
+              //const double theta = std::max(0,1-(newton_residual/switch_initial_newton_residual));
+
+              //1;//(1/3)-1; // TODO:Compute a optimal value for this.
 
               if (assemble_newton_stokes_matrix)
                 {
@@ -2343,8 +2375,8 @@ namespace aspect
                         {
                           data.local_matrix(i,j) += ( // using tensor thing is complecating everything quite a bit, so removed it for now.
                                                       scratch.grads_phi_u[i] * 2.0 * eta * scratch.grads_phi_u[j]
-                                                      + alpha * (scratch.grads_phi_u[i] * (dviscosities_dstrain_rate * scratch.grads_phi_u[j]) * strain_rate
-                                                                 + scratch.grads_phi_u[j] * (dviscosities_dstrain_rate * scratch.grads_phi_u[i]) * strain_rate)
+                                                      + theta * 2* (scratch.grads_phi_u[i] * (dviscosities_dstrain_rate * scratch.grads_phi_u[j]) * strain_rate)
+                                                                 //+ scratch.grads_phi_u[j] * (dviscosities_dstrain_rate * scratch.grads_phi_u[i]) * strain_rate)
                                                       - (pressure_scaling *
                                                          scratch.div_phi_u[i] * scratch.phi_p[j])
                                                       // finally the term -div(u). note the negative sign to make this
@@ -2355,6 +2387,117 @@ namespace aspect
                           Assert(dealii::numbers::is_finite(data.local_matrix(i,j)),ExcMessage ("Error: Assembly matrix is not finite."));
                         }
                     }
+
+
+                  /*FullMatrix<double> A_T;
+                  A_T.copy_transposed(data.local_matrix);
+                  FullMatrix<double> x_loc = data.local_matrix;
+                  x_loc.add(-1, A_T);
+                  if(x_loc.frobenius_norm()/data.local_matrix.frobenius_norm() > 1e-8)
+                	  std::cout << "Not symetric!" << std::endl;*/
+                  //else
+                	//  std::cout << "Symmetric." << std::endl;
+
+
+                  if (false)//assemble_newton_stokes_matrix)
+                  {
+//std::cout << "Flag 1" << std::endl;
+                      SymmetricTensor<4,dim> H;
+                      SymmetricTensor<4,dim> HT;
+                      H = outer_product(strain_rate,dviscosities_dstrain_rate);
+                      HT = outer_product(dviscosities_dstrain_rate,strain_rate);
+                      SymmetricTensor<4,dim> SPD = 2 * eta * identity_tensor<dim>() + H + HT;
+
+                     // std::cout << "SPD = " << SPD << std::endl;
+
+
+//                      bool testing_H = true;
+//                      for (unsigned int sample = 0; sample < 1000; ++sample)
+//                      {
+//                          SymmetricTensor<2,dim> normal;
+//
+//                          for (unsigned int i=0; i<dim; ++i)
+//                        	  for (unsigned int j=0; j<dim; ++j)
+//                        	  {
+//                        		  //std::cout << "Flag 2.1 = " << i << ":" << j << ", dim = " << dim << std::endl;
+//                        		  normal[i][j] = Utilities::generate_normal_random_number (0, 1);
+//                        	  }
+//
+//                          //std::cout << "Flag 3"<< std::endl;
+//                          SymmetricTensor<2,dim> transposed = transpose(normal);
+//
+//                          double SPD_value = transposed * (SPD * normal);
+//                          if(SPD_value < 0)
+//                        	  testing_H = false;
+//                    	 // std::cout << "SPD_value = " << SPD_value << std::endl;
+//                      }
+//                      if(testing_H == false)
+//                      {
+//                    	  std::cout << "H (SPD) is not spd!!! " << std::endl;
+//                    	  std::cout << "{{" << SPD[0][0][0][0] << "," << SPD[0][0][1][1] << "," << SPD[0][0][0][1] << "," << SPD[0][0][1][0] << "}" << std::endl;
+//                    	  std::cout << "{" << SPD[1][1][0][0] << "," << SPD[1][1][1][1] << "," << SPD[1][1][0][1] << "," << SPD[1][1][1][0] << "}" << std::endl;
+//                    	  std::cout << "{" << SPD[0][1][0][0] << "," << SPD[0][1][1][1] << "," << SPD[0][1][0][1] << "," << SPD[0][1][1][0] << "}" << std::endl;
+//                    	  std::cout << "{" << SPD[1][0][0][0] << "," << SPD[1][0][1][1] << "," << SPD[1][0][0][1] << "," << SPD[1][0][1][0] << "}}" << std::endl;
+//                      }
+                      /*else
+                    	  std::cout << "H (SPD) are all spd :)" << std::endl;*/
+
+
+                  bool testing = true;
+//std::cout << "F" << std::endl;
+                  for (unsigned int sample = 0; sample < 10; ++sample)
+                  {
+                	  Vector<double> tmp (dofs_per_cell);
+
+                	  for (unsigned int i=0; i<dofs_per_cell; ++i)
+                		  if (scratch.finite_element_values.get_fe().system_to_component_index(i).first < dim)
+                			  tmp[i] = Utilities::generate_normal_random_number (0, 1);
+
+                	  const double abc =  data.local_matrix.matrix_norm_square(tmp)/(tmp*tmp);
+                	  if (abc < -1e-12*data.local_matrix.frobenius_norm())
+                	  {
+                		  testing = false;
+                		  std::cout << sample << " Not SPD: " << abc << "; " << std::endl;
+
+                		  for (unsigned int i=0; i<dofs_per_cell; ++i)
+                		  {
+                			  for (unsigned int j=0; j<dofs_per_cell; ++j)
+                				  std::cout << std::setprecision(1)  << data.local_matrix(i,j) << "," << std::flush;
+                			  std::cout << "},{" << std::endl;
+                		  }
+                		  std::cout << std::endl;
+                		  std::cout << std::setprecision(6) << std::endl;
+                		  for (unsigned int i=0; i<dofs_per_cell; ++i)
+                		  {
+                			  for (unsigned int j=0; j<dofs_per_cell; ++j)
+                			  {
+                				  //std::cout << i << "," << j << "=" << data.local_matrix(i,j) << ", gpui = " << scratch.grads_phi_u[i] << ", eta = " << eta << ", gpuj = " << scratch.grads_phi_u[j] << ", deds = " << dviscosities_dstrain_rate << ", ps = " << pressure_scaling << ", sr = " << strain_rate << ", " << std::sqrt(0.5*deviator(strain_rate)*deviator(strain_rate)) << std::endl;
+                				  /*data.local_matrix(i,j) += ( // using tensor thing is complecating everything quite a bit, so removed it for now.
+                						  scratch.grads_phi_u[i] * 2.0 * eta * scratch.grads_phi_u[j]
+																								   + alpha * (scratch.grads_phi_u[i] * (dviscosities_dstrain_rate * scratch.grads_phi_u[j]) * strain_rate
+																										   + scratch.grads_phi_u[j] * (dviscosities_dstrain_rate * scratch.grads_phi_u[i]) * strain_rate)
+																										   - (pressure_scaling *
+																												   scratch.div_phi_u[i] * scratch.phi_p[j])
+																												   // finally the term -div(u). note the negative sign to make this
+																												   // operator adjoint to the grad(p) term
+																												   - (pressure_scaling *
+																														   scratch.phi_p[i] * scratch.div_phi_u[j]))
+																														   * scratch.finite_element_values.JxW(q);*/
+                				  Assert(dealii::numbers::is_finite(data.local_matrix(i,j)),ExcMessage ("Error: Assembly matrix is not finite."));
+                			  }
+                		  }
+
+                		  Assert(testing,ExcMessage ("Error: Assembly not SSPD!."));
+                	  }else
+                	  {
+                		  //if(abc != 0)
+                			//  std::cout << abc << " " << std::flush;
+                	  }
+                  }
+                  if(testing == false)
+                	  std::cout << std::endl;
+                  }
+
                 }
               for (unsigned int i=0; i<dofs_per_cell; ++i)
                 {
@@ -2370,6 +2513,7 @@ namespace aspect
                   Assert(dealii::numbers::is_finite(data.local_rhs(i)),ExcMessage ("Error: Assembly rhs is not finite."));
                 }
             }
+          //std::cout << "End loop!" << std::endl;
         }
 
         void
@@ -3632,7 +3776,8 @@ namespace aspect
                                     std_cxx11::_2,
                                     std_cxx11::_3,//assemble_newton_stokes_matrix,
                                     std_cxx11::_4,
-                                    std_cxx11::_5));
+                                    std_cxx11::_5,
+									std::max(0.0,1-(parameters.newton_residual/parameters.switch_initial_newton_residual))));
         else
           assemblers->local_assemble_stokes_system
           .connect (std_cxx11::bind(&aspect::Assemblers::NewtonStokes<dim>::local_assemble_stokes_system_incompressible,
@@ -3641,7 +3786,8 @@ namespace aspect
                                     std_cxx11::_2,
                                     std_cxx11::_3,//assemble_newton_stokes_matrix,
                                     std_cxx11::_4,
-                                    std_cxx11::_5));
+                                    std_cxx11::_5,
+									std::max(0.0,1-(parameters.newton_residual/parameters.switch_initial_newton_residual))));
         assembler_objects.push_back (std_cxx11::unique_ptr<internal::Assembly::Assemblers::AssemblerBase<dim> >
                                      (newton_stokes_system_assembler));
 

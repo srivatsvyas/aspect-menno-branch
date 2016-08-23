@@ -1986,6 +1986,8 @@ namespace aspect
           double newton_residual_pres = initial_newton_residual_pres;
           double newton_residual = initial_newton_residual;
           double newton_residual_old = initial_newton_residual;
+          parameters.switch_initial_newton_residual = initial_newton_residual;
+          parameters.newton_residual = 0;
 
           bool   use_picard = true;
 
@@ -2085,6 +2087,7 @@ namespace aspect
 
                   pcout << std::endl;
 
+                  parameters.switch_initial_newton_residual = stokes_residual;
 
                   for (unsigned int c=0; c<parameters.n_compositional_fields; ++c)
                     if (initial_composition_residual[c]>0)
@@ -2116,12 +2119,13 @@ namespace aspect
                   // we now switch to the newton system
                   assemble_newton_stokes_system = assemble_newton_stokes_matrix = true;
 
-                  if (use_picard == true)
-                    {
+
                       pcout << "   Reset assemblers." << std::endl;
                       compute_current_constraints ();
                       assemblers.reset (new internal::Assembly::AssemblerLists<dim>());
                       set_assemblers();
+                      if (use_picard == true)
+                      {
                       use_picard = false;
                     }
 
@@ -2165,6 +2169,13 @@ namespace aspect
                   // need to update the Stokes preconditioner.
                   //if (stokes_matrix_depends_on_solution() == true)
                   rebuild_stokes_matrix = rebuild_stokes_preconditioner = assemble_newton_stokes_matrix = true;
+
+                  /*pcout << "   Reset assemblers." << std::endl;
+                  compute_current_constraints ();
+                  assemblers.reset (new internal::Assembly::AssemblerLists<dim>());
+                  set_assemblers();*/
+                  if(parameters.newton_residual == 0)
+                	  parameters.newton_residual = parameters.switch_initial_newton_residual;
 
                   assemble_stokes_system();
                   build_stokes_preconditioner();
@@ -2215,32 +2226,33 @@ namespace aspect
                       test_newton_residual_pres = system_rhs.block(introspection.block_indices.pressure).l2_norm();
                       test_newton_residual = std::sqrt(test_newton_residual_velo * test_newton_residual_velo + test_newton_residual_pres * test_newton_residual_pres);
 
-                      if (test_newton_residual < (1.0 - alfa * lambda) * newton_residual)
+                      if (true)//test_newton_residual < (1.0 - alfa * lambda) * newton_residual)
                         {
-                          pcout << "   Norm of rhs = " << newton_residual << ", relative residual: " << newton_residual/initial_newton_residual <<  std::endl;
+                          pcout << "   Norm of rhs = " << newton_residual << ", relative residual: " << newton_residual/initial_newton_residual << ", theta = " << std::max(0.,(1-(parameters.newton_residual/parameters.switch_initial_newton_residual))) << " = (1-(" << parameters.newton_residual << "/" << parameters.switch_initial_newton_residual << ")" <<  std::endl;
                           break;
                         }
                       else
                         {
 
                           pcout << "   Iteration " << line_search_iteration << ", with Norm of rhs " << test_newton_residual << " and going to "
-                                << (1.0 - alfa * lambda) * newton_residual << ", relative residual: " << newton_residual/initial_newton_residual << std::endl;
+                                << (1.0 - alfa * lambda) * newton_residual << ", relative residual: " << newton_residual/initial_newton_residual << ", theta = " << std::max(0.,(1-(parameters.newton_residual/parameters.switch_initial_newton_residual))) << " = (1-(" << parameters.newton_residual << "/" << parameters.switch_initial_newton_residual << ")" << std::endl;
 
-                          lambda = lambda*(2.0/3.0);// TODO: make a parameter out of this.
+                          lambda = lambda* 1;//(2.0/3.0);// TODO: make a parameter out of this.
                         }
                       line_search_iteration++;
                     }
                   while (line_search_iteration < parameters.max_newton_line_search_iterations);
 
                   newton_residual = test_newton_residual;
+                  parameters.newton_residual = newton_residual;
 
                   // We set the linear tolerance for the next iteration using
                   // choice 1 of the Eisenstat-Walker method. We do this because
                   // choice 1 requires no parameters. TODO: Make it work and ellaborate.
                   /*double eta_old = parameters.linear_stokes_solver_tolerance;
-                  double eta_new = 0.9 * (newton_residual / newton_residual_old) * (newton_residual / newton_residual_old);
-                  if(0.9 * eta_old * eta_old > 0.1)
-                    eta_new = std::max(eta_new, 0.9 * eta_old * eta_old);
+                  double eta_new = 0.9 * ((newton_residual * newton_residual) / (newton_residual_old * newton_residual_old));
+                  //if(0.9 * eta_old * eta_old > 0.1)
+                    //eta_new = std::max(eta_new, 0.9 * eta_old * eta_old);
                   parameters.linear_stokes_solver_tolerance = std::min(eta_new, 0.5);
                   parameters.linear_stokes_solver_tolerance = std::max(parameters.linear_stokes_solver_tolerance,0.5 * parameters.nonlinear_tolerance / newton_residual);
                   //if(nonlinear_iteration_number == 0)

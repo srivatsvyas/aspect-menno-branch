@@ -279,6 +279,50 @@ namespace aspect
     }
 
     template <int dim>
+    double
+	SimpleNonlinear<dim>::
+	compute_second_invariant(const SymmetricTensor<2,dim> strain_rate, const double min_strain_rate) const
+    {
+        const double edot_ii_strict = std::sqrt(deviator(strain_rate)*deviator(strain_rate));//std::sqrt(deviator(in.strain_rate[i])*deviator(in.strain_rate[i]));//2 * std::sqrt(0.5*deviator(in.strain_rate[i])*deviator(in.strain_rate[i]));
+        //const double edot_ii =  std::max(edot_ii_strict, min_strain_rate*min_strain_rate);
+        return edot_ii_strict;
+    }
+
+    template <int dim>
+    double
+	SimpleNonlinear<dim>::
+	compute_viscosity(const double edot_ii,const double prefactor,const double alpha, const double eref) const
+    {
+    	//double eref = std::max(1e-4 * edot_ii,1e-4);
+
+    	return prefactor * pow(edot_ii * edot_ii + eref * eref, alpha / 2);
+    	//return prefactor * std::pow(edot_ii,alpha);
+
+    	//return (prefactor / (2 * eref)) * (1/std::pow(eref,alpha)) * pow(edot_ii+eref*eref,alpha/2);
+
+        /*double eref = 1e-4 * std::sqrt(deviator(in.strain_rate[i])*deviator(in.strain_rate[i]));
+        if(eref == 0)
+      	  eref = 1e-4 * min_strain_rate[c];
+        composition_viscosities[c] = //prefactor[c] * std::pow(edot_ii,stress_exponent_inv);*/
+                //(stress_exponent_inv * composition_viscosities[c] / edot_ii) * in.strain_rate[i];
+	  	  	  	  	  	  /**
+	  	  	  	  	  	   * EQ 1: This one seems to work
+	  	  	  	  	  	   */
+      		  //std::pow(prefactor[c],-stress_exponent_inv) * std::pow(edot_ii,stress_exponent_inv-1);
+        /**
+         * EQ 2: Raids equation of powerlaw
+         */
+                 //prefactor[c] * std::pow(std::pow(std::sqrt(deviator(in.strain_rate[i])*deviator(in.strain_rate[i])+eref*eref),2),alpha/2);
+      		  //compute_viscosity(edot_ii,prefactor[c],alpha);//prefactor[c] * std::pow(edot_ii,alpha);
+        //std::cout << composition_viscosities[c] << " = " << prefactor[c] << " * std::pow(" << edot_ii << "," << alpha << ")" << std::endl;
+      		  /**
+      		   * EQ FINAL
+      		   */
+                                   //std::max(std::min(std::pow(prefactor[c],-stress_exponent_inv) * std::pow(edot_ii,stress_exponent_inv-1), max_visc[c]), min_visc[c]);
+
+    }
+
+    template <int dim>
     void
     SimpleNonlinear<dim>::
     evaluate(const MaterialModel::MaterialModelInputs<dim> &in,
@@ -341,8 +385,8 @@ namespace aspect
                   // to prevent a division-by-zero, and a floating point exception.
                   // Otherwise, calculate the square-root of the norm of the second invariant of the deviatoric-
                   // strain rate (often simplified as epsilondot_ii)
-                  const double edot_ii_strict = std::sqrt(0.5*deviator(in.strain_rate[i])*deviator(in.strain_rate[i]));
-                  const double edot_ii = 2.0 * std::max(edot_ii_strict, min_strain_rate[c] * min_strain_rate[c]);
+                  //const double edot_ii_strict = std::sqrt(deviator(in.strain_rate[i])*deviator(in.strain_rate[i]));//std::sqrt(deviator(in.strain_rate[i])*deviator(in.strain_rate[i]));//2 * std::sqrt(0.5*deviator(in.strain_rate[i])*deviator(in.strain_rate[i]));
+                  const double edot_ii = compute_second_invariant(in.strain_rate[i], min_strain_rate[c]);// std::max(edot_ii_strict, min_strain_rate[c]*min_strain_rate[c]);
 
                   // Find effective viscosities for each of the individual phases
                   // Viscosities should have same number of entries as compositional fields
@@ -358,40 +402,139 @@ namespace aspect
                   // of compositional field viscosities is consistent with any averaging scheme.
                   // TODO: Mailed Bob and asked why the averaging should be arithmetic. Bob replyed that this has to
                   //       do with effective medium theory. Have to look into this a bit more.
-                  const double stress_exponent_inv = 1/stress_exponent[c];
-                  composition_viscosities[c] = std::max(std::min(std::pow(prefactor[c],-stress_exponent_inv) * std::pow(edot_ii,stress_exponent_inv-1), max_visc[c]), min_visc[c]);
+                  const double stress_exponent_inv = (1./stress_exponent[c]);//stress_exponent[c])-1;
+                  const double alpha = stress_exponent_inv - 1;
+            	  const double eref = std::max(1e-7 * edot_ii,1e-7);
+
+                  composition_viscosities[c] = compute_viscosity(edot_ii,prefactor[c],alpha,eref);
+
                   Assert(dealii::numbers::is_finite(composition_viscosities[c]),ExcMessage ("Error: Viscosity is not finite."));
+                  //std::cout << "Flag 10" << std::endl;
                   if (derivatives != NULL)
                     {
-                      if (edot_ii_strict > min_strain_rate[c] * min_strain_rate[c] && composition_viscosities[c] < max_visc[c] && composition_viscosities[c] > min_visc[c])
+                	  if(true)
+                	  {
+                		  //analytic
+                      if (edot_ii >= min_strain_rate[c])// && composition_viscosities[c] < max_visc[c] && composition_viscosities[c] > min_visc[c])
                         {
                           //strictly speaking the derivative is this: 0.5 * ((1/stress_exponent)-1) * std::pow(2,2) * out.viscosities[i] * (1/(edot_ii*edot_ii)) * deviator(in.strain_rate[i])
-                          composition_viscosities_derivatives[c] = 2 * (stress_exponent_inv-1) * composition_viscosities[c] * (1/(edot_ii*edot_ii)) * deviator(in.strain_rate[i]);
+                          composition_viscosities_derivatives[c] = alpha * composition_viscosities[c] * (1/(edot_ii * edot_ii + eref * eref))  * deviator(in.strain_rate[i]);
+                          /**
+                           * EQ 2: Raids euqation of powerlaw
+                           */
+                          //alpha * composition_viscosities[c] * (deviator(in.strain_rate[i])*deviator(in.strain_rate[i])/ std::pow(std::max(std::sqrt(deviator(in.strain_rate[i])*deviator(in.strain_rate[i])),min_strain_rate[c]),2));
+                          /**
+                           * EQ FINAL
+                           */
+                          //composition_viscosities[c] * (stress_exponent_inv-1) * prefactor[c] *  std::pow(edot_ii,stress_exponent_inv-1) * (1/(edot_ii * edot_ii)) * in.strain_rate[i];
+                          //(stress_exponent_inv * composition_viscosities[c] / edot_ii) * in.strain_rate[i];
+                          /**
+                           * EQ 1: This one seems to work
+                           */
+                          //2 * (stress_exponent_inv-1) * composition_viscosities[c] * (1/(edot_ii*edot_ii)) * deviator(in.strain_rate[i]);
                           //std::cout << composition_viscosities_derivatives[i] << ", dev strt:" << deviator(in.strain_rate[i]) << std::endl;
-                        }
+                          //std::cout << "SN1: " << 2 * (stress_exponent_inv-1) * composition_viscosities[c] * (1/(edot_ii*edot_ii)) << ";" << std::flush;
+                          //std::cout << "eq " << c << ": " << composition_viscosities_derivatives[c] << "= 2 * (" << stress_exponent_inv << "-1) * " << composition_viscosities[c] << "* (1/(" << edot_ii << "*" << edot_ii << ") * " << deviator(in.strain_rate[i]) << std::endl;
+                            }
                       else
                         {
+                    	  //std::cout << "edot_ii = " << edot_ii << std::endl;
                           composition_viscosities_derivatives[c] = 0;
-                          //std::cout << "Set " << i << " to 0" << std::endl;
+                          //std::cout << "SN2: Set " << i << " to 0" << ", edstrict = " << edot_ii_strict << ", min sr = " << min_strain_rate[c] << ", comp visc = " << composition_viscosities[c] << ", max visc = " << max_visc[c] << ", min visc = " << min_visc[c] << std::endl;
                         }
+                	  }
+                	  else
+                	  {
+                		  // finite difference
+                		  const double finite_difference_accuracy = 1e-7;
+                		  SymmetricTensor<2,dim> zerozero = SymmetricTensor<2,dim>();
+                		  SymmetricTensor<2,dim> onezero = SymmetricTensor<2,dim>();
+                		  SymmetricTensor<2,dim> oneone = SymmetricTensor<2,dim>();
+
+                		  zerozero[0][0] = 1;
+                		  onezero[1][0]  = 0.5; // because symmetry doubles this entry
+                		  oneone[1][1]   = 1;
+
+                		  SymmetricTensor<2,dim> strain_rate_zero_zero = in.strain_rate[i] + std::fabs(in.strain_rate[i][0][0]) * finite_difference_accuracy * zerozero;
+                		  SymmetricTensor<2,dim> strain_rate_one_zero = in.strain_rate[i] + std::fabs(in.strain_rate[i][1][0]) * finite_difference_accuracy * onezero;
+                		  SymmetricTensor<2,dim> strain_rate_one_one = in.strain_rate[i] + std::fabs(in.strain_rate[i][1][1]) * finite_difference_accuracy * oneone;
+
+                		  double edot_ii_fd;
+
+                		  edot_ii_fd = compute_second_invariant(strain_rate_zero_zero,0);//std::max( std::sqrt(deviator(strain_rate_zero_zero)*deviator(strain_rate_zero_zero)), min_strain_rate[c]);
+                		  double eta_zero_zero = compute_viscosity(edot_ii_fd,prefactor[c],alpha,eref);//prefactor[c] * std::pow(edot_ii_fd,alpha);//std::pow(prefactor[c],-stress_exponent_inv) * std::pow(edot_ii_fd,stress_exponent_inv-1);
+                		  double deriv_zero_zero = eta_zero_zero - composition_viscosities[c];
+
+                		  if(deriv_zero_zero != 0)
+                		  {
+                			  if(strain_rate_zero_zero[0][0] != 0)
+                			  {
+                				  deriv_zero_zero /= std::fabs(strain_rate_zero_zero[0][0]) * finite_difference_accuracy;
+                			  }
+                			  else
+                			  {
+                				  deriv_zero_zero = 0;
+                			  }
+
+                		  }
+
+                		  edot_ii_fd = compute_second_invariant(strain_rate_one_zero,0);//std::max(std::sqrt(deviator(strain_rate_one_zero)*deviator(strain_rate_one_zero)), min_strain_rate[c]);
+                		  double eta_one_zero = compute_viscosity(edot_ii_fd,prefactor[c],alpha,eref);//prefactor[c] * std::pow(edot_ii_fd,alpha);//std::pow(prefactor[c],-stress_exponent_inv) * std::pow(edot_ii_fd,stress_exponent_inv-1);
+                		  double deriv_one_zero = eta_one_zero - composition_viscosities[c];
+
+                		  if(deriv_one_zero != 0)
+                		  {
+                			  if(strain_rate_one_zero[1][0] != 0)
+                			  {
+                				  deriv_one_zero /= std::fabs(strain_rate_one_zero[1][0]) * finite_difference_accuracy;
+                			  }
+                			  else
+                			  {
+                				  deriv_one_zero = 0;
+                			  }
+                		  }
+
+                		  edot_ii_fd = compute_second_invariant(strain_rate_one_one,0);//std::max(std::sqrt(deviator(strain_rate_one_one)*deviator(strain_rate_one_one)), min_strain_rate[c]);
+                		  double eta_one_one = compute_viscosity(edot_ii_fd,prefactor[c],alpha,eref);//prefactor[c] * std::pow(edot_ii_fd,alpha);//std::pow(prefactor[c],-stress_exponent_inv) * std::pow(edot_ii_fd,stress_exponent_inv-1);
+                		  double deriv_one_one = eta_one_one - composition_viscosities[c];
+
+                		  if(eta_one_one != 0)
+                		  {
+                			  if(strain_rate_one_one[1][1] != 0)
+                			  {
+                				  deriv_one_one /= std::fabs(strain_rate_one_one[1][1]) * finite_difference_accuracy;
+                			  }
+                			  else
+                			  {
+                				  deriv_one_one = 0;
+                			  }
+                		  }
+//std::cout << deriv_zero_zero << ", " << deriv_one_zero << ", " << deriv_one_one << std::endl;
+                		  composition_viscosities_derivatives[c][0][0] = deriv_zero_zero;
+                		  composition_viscosities_derivatives[c][1][0] = deriv_one_zero;
+                		  composition_viscosities_derivatives[c][1][1] = deriv_one_one;
+
+                		  composition_viscosities_derivatives[c] = composition_viscosities_derivatives[c] * alpha;
+
+                	  }
                     }
                 }
-              out.viscosities[i] = p_norm_average(in.composition[i], composition_viscosities, viscosity_averaging_p);
+              out.viscosities[i] = composition_viscosities[0];//p_norm_average(in.composition[i], composition_viscosities, viscosity_averaging_p);
               Assert(dealii::numbers::is_finite(out.viscosities[i]),ExcMessage ("Error: Averaged viscosity is not finite."));
 
               if (derivatives != NULL)
                 {
-                  derivatives->dviscosities_dstrain_rate[i] = p_norm_average_derivatives(out.viscosities[i],in.composition[i], composition_viscosities, composition_viscosities_derivatives, viscosity_averaging_p);
+                  derivatives->dviscosities_dstrain_rate[i] = composition_viscosities_derivatives[0];//p_norm_average_derivatives(out.viscosities[i],in.composition[i], composition_viscosities, composition_viscosities_derivatives, viscosity_averaging_p);
 
 #ifdef DEBUG
-                  for (int x = 0; x < dim; x++)
+ /*                 for (int x = 0; x < dim; x++)
                     for (int y = 0; y < dim; y++)
                       if (!dealii::numbers::is_finite(derivatives->dviscosities_dstrain_rate[i][x][y]))
                         std::cout << "Error: Averaged viscosity to strain-rate devrivative is not finite." << std::endl;
 
                   derivatives->dviscosities_dpressure[i]    = 0;
                   if (!dealii::numbers::is_finite(derivatives->dviscosities_dpressure[i]))
-                    std::cout << "Error: Averaged viscosity to pressure devrivative is not finite." << std::endl;
+                    std::cout << "Error: Averaged viscosity to pressure devrivative is not finite." << std::endl;*/
 #endif
                 }
             }

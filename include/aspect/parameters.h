@@ -187,6 +187,10 @@ namespace aspect
     double                         temperature_solver_tolerance;
     double                         composition_solver_tolerance;
 
+    /// temporary place it in parameters.h till a better place is found
+    double 							newton_residual;
+    double 							switch_initial_newton_residual;
+
     /**
      * @}
      */

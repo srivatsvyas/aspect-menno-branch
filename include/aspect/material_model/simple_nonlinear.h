@@ -90,6 +90,10 @@ namespace aspect
                                                            const std::vector<SymmetricTensor<2,dim> > &parameter_derivatives,
                                                            const double p) const;
 
+        double compute_second_invariant(const SymmetricTensor<2,dim> strain_rate, const double min_strain_rate) const;
+
+        double compute_viscosity(const double edot_ii,const double prefactor,const double alpha, const double eref) const;
+
         virtual void evaluate(const MaterialModel::MaterialModelInputs<dim> &in,
                               MaterialModel::MaterialModelOutputs<dim> &out) const;
 

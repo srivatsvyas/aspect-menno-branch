@@ -13,7 +13,7 @@ int f(double parameter)
   const int dim=2;
 
   using namespace aspect::MaterialModel;
-  MaterialModelInputs<dim> in_base(3,3);
+  MaterialModelInputs<dim> in_base(5,3);
   in_base.composition[0][0] = 0;
   in_base.composition[0][1] = 0;
   in_base.composition[0][2] = 0;
@@ -23,10 +23,18 @@ int f(double parameter)
   in_base.composition[2][0] = 0;
   in_base.composition[2][1] = 0.2;
   in_base.composition[2][2] = 0.4;
+  in_base.composition[3][0] = 0;
+  in_base.composition[3][1] = 0.2;
+  in_base.composition[3][2] = 0.4;
+  in_base.composition[4][0] = 1;
+  in_base.composition[4][1] = 0;
+  in_base.composition[4][2] = 0;
 
   in_base.pressure[0] = 1e9;
   in_base.pressure[1] = 5e9;
   in_base.pressure[2] = 2e10;
+  in_base.pressure[3] = 2e11;
+  in_base.pressure[4] = 2e12;
 
   /**
    * We cant take to slow values, because then the difference in the
@@ -45,10 +53,20 @@ int f(double parameter)
   in_base.strain_rate[2][1][1] = 1e-13;
   in_base.strain_rate[2][0][1] = 1e-11;
   in_base.strain_rate[2][0][0] = -1e-12;
+  in_base.strain_rate[3] = SymmetricTensor<2,dim>(in_base.strain_rate[0]);
+  in_base.strain_rate[3][1][1] = 4.9e-21;
+  in_base.strain_rate[3][0][1] = 4.9e-21;
+  in_base.strain_rate[3][0][0] = 4.9e-21;
+  in_base.strain_rate[4] = SymmetricTensor<2,dim>(in_base.strain_rate[0]);
+  in_base.strain_rate[4][1][1] = 1e-11;
+  in_base.strain_rate[4][0][1] = 1e-11;
+  in_base.strain_rate[4][0][0] = 1e-11;
 
   in_base.temperature[0] = 293;
   in_base.temperature[1] = 1600;
   in_base.temperature[2] = 2000;
+  in_base.temperature[2] = 2100;
+  in_base.temperature[2] = 2200;
 
   SymmetricTensor<2,dim> zerozero = SymmetricTensor<2,dim>();
   SymmetricTensor<2,dim> onezero = SymmetricTensor<2,dim>();
@@ -68,10 +86,12 @@ int f(double parameter)
   in_dviscositydpressure.pressure[0] *= finite_difference_factor;
   in_dviscositydpressure.pressure[1] *= finite_difference_factor;
   in_dviscositydpressure.pressure[2] *= finite_difference_factor;
+  in_dviscositydpressure.pressure[3] *= finite_difference_factor;
+  in_dviscositydpressure.pressure[4] *= finite_difference_factor;
 
-  MaterialModelInputs<dim> in_dviscositydstrainrate_zerozero(3,3);
-  MaterialModelInputs<dim> in_dviscositydstrainrate_onezero(3,3);
-  MaterialModelInputs<dim> in_dviscositydstrainrate_oneone(3,3);
+  MaterialModelInputs<dim> in_dviscositydstrainrate_zerozero(5,3);
+  MaterialModelInputs<dim> in_dviscositydstrainrate_onezero(5,3);
+  MaterialModelInputs<dim> in_dviscositydstrainrate_oneone(5,3);
 
   in_dviscositydstrainrate_zerozero = in_base;
   in_dviscositydstrainrate_onezero = in_base;
@@ -79,32 +99,40 @@ int f(double parameter)
   in_dviscositydstrainrate_zerozero.strain_rate[0] += std::fabs(in_dviscositydstrainrate_zerozero.strain_rate[0][0][0]) * finite_difference_accuracy * zerozero;
   in_dviscositydstrainrate_zerozero.strain_rate[1] += std::fabs(in_dviscositydstrainrate_zerozero.strain_rate[1][0][0]) * finite_difference_accuracy * zerozero;
   in_dviscositydstrainrate_zerozero.strain_rate[2] += std::fabs(in_dviscositydstrainrate_zerozero.strain_rate[2][0][0]) * finite_difference_accuracy * zerozero;
+  in_dviscositydstrainrate_zerozero.strain_rate[3] += std::fabs(in_dviscositydstrainrate_zerozero.strain_rate[3][0][0]) * finite_difference_accuracy * zerozero;
+  in_dviscositydstrainrate_zerozero.strain_rate[4] += std::fabs(in_dviscositydstrainrate_zerozero.strain_rate[4][0][0]) * finite_difference_accuracy * zerozero;
   in_dviscositydstrainrate_onezero.strain_rate[0]  += std::fabs(in_dviscositydstrainrate_onezero.strain_rate[0][1][0]) * finite_difference_accuracy * onezero;
   in_dviscositydstrainrate_onezero.strain_rate[1]  += std::fabs(in_dviscositydstrainrate_onezero.strain_rate[1][1][0]) * finite_difference_accuracy * onezero;
   in_dviscositydstrainrate_onezero.strain_rate[2]  += std::fabs(in_dviscositydstrainrate_onezero.strain_rate[2][1][0]) * finite_difference_accuracy * onezero;
+  in_dviscositydstrainrate_onezero.strain_rate[3]  += std::fabs(in_dviscositydstrainrate_onezero.strain_rate[3][1][0]) * finite_difference_accuracy * onezero;
+  in_dviscositydstrainrate_onezero.strain_rate[4]  += std::fabs(in_dviscositydstrainrate_onezero.strain_rate[4][1][0]) * finite_difference_accuracy * onezero;
   in_dviscositydstrainrate_oneone.strain_rate[0]   += std::fabs(in_dviscositydstrainrate_oneone.strain_rate[0][1][1]) * finite_difference_accuracy * oneone;
   in_dviscositydstrainrate_oneone.strain_rate[1]   += std::fabs(in_dviscositydstrainrate_oneone.strain_rate[1][1][1]) * finite_difference_accuracy * oneone;
   in_dviscositydstrainrate_oneone.strain_rate[2]   += std::fabs(in_dviscositydstrainrate_oneone.strain_rate[2][1][1]) * finite_difference_accuracy * oneone;
+  in_dviscositydstrainrate_oneone.strain_rate[3]   += std::fabs(in_dviscositydstrainrate_oneone.strain_rate[3][1][1]) * finite_difference_accuracy * oneone;
+  in_dviscositydstrainrate_oneone.strain_rate[4]   += std::fabs(in_dviscositydstrainrate_oneone.strain_rate[4][1][1]) * finite_difference_accuracy * oneone;
 
   MaterialModelInputs<dim> in_dviscositydtemperature(3,3);
   in_dviscositydtemperature = in_base;
   in_dviscositydtemperature.temperature[0] *= 1.0000000001;
   in_dviscositydtemperature.temperature[1] *= 1.0000000001;
   in_dviscositydtemperature.temperature[2] *= 1.0000000001;
+  in_dviscositydtemperature.temperature[3] *= 1.0000000001;
+  in_dviscositydtemperature.temperature[4] *= 1.0000000001;
 
 
-  MaterialModelOutputs<dim> out_base(3,3);
+  MaterialModelOutputs<dim> out_base(5,3);
 
-  MaterialModelOutputs<dim> out_dviscositydpressure(3,3);
-  MaterialModelOutputs<dim> out_dviscositydstrainrate_zerozero(3,3);
-  MaterialModelOutputs<dim> out_dviscositydstrainrate_onezero(3,3);
-  MaterialModelOutputs<dim> out_dviscositydstrainrate_oneone(3,3);
-  MaterialModelOutputs<dim> out_dviscositydtemperature(3,3);
+  MaterialModelOutputs<dim> out_dviscositydpressure(5,3);
+  MaterialModelOutputs<dim> out_dviscositydstrainrate_zerozero(5,3);
+  MaterialModelOutputs<dim> out_dviscositydstrainrate_onezero(5,3);
+  MaterialModelOutputs<dim> out_dviscositydstrainrate_oneone(5,3);
+  MaterialModelOutputs<dim> out_dviscositydtemperature(5,3);
 
   if (out_base.get_additional_output<MaterialModelDerivatives<dim> >() != NULL)
     throw "error";
 
-  out_base.additional_outputs.push_back(std::make_shared<MaterialModelDerivatives<dim> > (3, 3));
+  out_base.additional_outputs.push_back(std::make_shared<MaterialModelDerivatives<dim> > (5, 3));
 
   SimpleNonlinear<dim> mat;
   ParameterHandler prm;
@@ -116,6 +144,7 @@ int f(double parameter)
   prm.enter_subsection ("Simple nonlinear");
   prm.set ("Prefactor", "1e-37,1e-36,1e-35,5e-36");
   prm.set ("Viscosity averaging p", std::to_string(parameter));
+  prm.set ("Minimum strain rate", 1.4e-20);
   prm.leave_subsection();
   prm.leave_subsection();
 
@@ -134,7 +163,7 @@ int f(double parameter)
 
   double temp;
   SymmetricTensor<2,dim> temp_tensor = SymmetricTensor<2,dim> ();
-  for(unsigned int i = 0; i < 3; i++)
+  for(unsigned int i = 0; i < 5; i++)
   {
 	  // prevent division by zero. If it is zero, the test has passed, because or
 	  // the finite difference and the analytical result match perfectly, or (more
@@ -153,7 +182,7 @@ int f(double parameter)
 
   }
 
-  for(unsigned int i = 0; i < 3; i++)
+  for(unsigned int i = 0; i < 5; i++)
   {
 	  // prevent division by zero. If it is zero, the test has passed, because or
 	  // the finite difference and the analytical result match perfectly, or (more
@@ -174,7 +203,7 @@ int f(double parameter)
 
   }
 
-  for(unsigned int i = 0; i < 3; i++)
+  for(unsigned int i = 0; i < 5; i++)
   {
 	  // prevent division by zero. If it is zero, the test has passed, because or
 	  // the finite difference and the analytical result match perfectly, or (more
@@ -192,7 +221,7 @@ int f(double parameter)
 		  }
   }
 
-  for(unsigned int i = 0; i < 3; i++)
+  for(unsigned int i = 0; i < 5; i++)
   {
 	  // prevent division by zero. If it is zero, the test has passed, because or
 	  // the finite difference and the analytical result match perfectly, or (more
@@ -235,7 +264,7 @@ int ik = f(-1); // Testing harmonic mean
 int ji = f(0); // Testing geometric mean
 int jj = f(1); // Testing arithmetic mean
 int jk = f(2); // Testing generalized p norm mean with positive p
-int ki = f(10); // Testing generalized p norm mean with large positive p
+//int ki = f(10); // Testing generalized p norm mean with large positive p
 int kj = f(1000); // Testing max function
 int kl = exit_function();
 

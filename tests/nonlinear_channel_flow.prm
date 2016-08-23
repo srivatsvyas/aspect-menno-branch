@@ -12,10 +12,10 @@ set Surface pressure                       = 0
 set Use years in output instead of seconds = false  # default: true
 set Nonlinear solver scheme                = Newton Stokes #iterated IMPES
 set Max nonlinear iterations = 20
-set Min pre-Newton nonlinear iterations = 0 #15
-set Nonlinear solver tolerance = 1e-6
-set Nonlinear Newton solver switch tolerance = 1 #e-7
-set Linear solver tolerance = 1e-10
+set Min pre-Newton nonlinear iterations = 3 #15
+set Nonlinear solver tolerance = 1e-7
+set Nonlinear Newton solver switch tolerance = 1e-2 #e-7
+set Linear solver tolerance = 1e-6
 #set Output directory = tests/output-nonlinear_channel_flow/
 #set Linear solver A block tolerance = 5e-1
 
@@ -64,7 +64,7 @@ subsection Material model
   subsection Simple nonlinear 
     set Minimum viscosity = 1e1
     set Maximum viscosity = 1e55
-    set Stress exponent = 3
+    set Stress exponent = 4
     set Viscosity averaging p = 10000
   end
 
