@@ -1987,27 +1987,30 @@ namespace aspect
           double newton_residual = initial_newton_residual;
           double newton_residual_old = initial_newton_residual;
           parameters.switch_initial_newton_residual = initial_newton_residual;
-          parameters.newton_residual = 0;
+          parameters.newton_residual = initial_newton_residual;
 
           bool   use_picard = true;
 
           pcout << "Initial Newton Stokes residual = " << initial_newton_residual << std::endl << std::endl;
-          assemble_newton_stokes_system = false;
-          assemblers.reset (new internal::Assembly::AssemblerLists<dim>());
-          set_assemblers();
-          assemble_stokes_system();
+          //assemble_newton_stokes_system = false;
+          //assemblers.reset (new internal::Assembly::AssemblerLists<dim>());
+          //set_assemblers();
+          //assemble_stokes_system();
 
           do
             {
-              if (assemble_newton_stokes_system == false && (max <= parameters.nonlinear_switch_tolerance || nonlinear_iteration_number >= parameters.min_pre_newton_nonlinear_iterations))
+        	  assemble_newton_stokes_system = true;
+              if (/*assemble_newton_stokes_system == false &&*/ use_picard == true && (max <= parameters.nonlinear_switch_tolerance || nonlinear_iteration_number >= parameters.min_pre_newton_nonlinear_iterations))
                 {
-                  assemble_newton_stokes_system = true;
+                  //assemble_newton_stokes_system = true;
+                  use_picard = false;
+                  std::cout << "set UP to false" << std::endl;
                   //parameters.linear_stokes_solver_tolerance = 1e-15;
                 }
 
               // TODO: We will use iterated IMPES for now, but we will somehow have to link this to the above solvers,
               //       and make a option available to not do this kind of globalisation at all.
-              if (assemble_newton_stokes_system == false)//false
+              if (false)//assemble_newton_stokes_system == false)//false
                 {
                   if (use_picard == false)
                     {
@@ -2124,10 +2127,10 @@ namespace aspect
                       compute_current_constraints ();
                       assemblers.reset (new internal::Assembly::AssemblerLists<dim>());
                       set_assemblers();
-                      if (use_picard == true)
-                      {
-                      use_picard = false;
-                    }
+                      //if (use_picard == true)
+                      //{
+                      //use_picard = false;
+                    //}
 
                   assemble_advection_system(AdvectionField::temperature());
                   build_advection_preconditioner(AdvectionField::temperature(),
@@ -2174,8 +2177,8 @@ namespace aspect
                   compute_current_constraints ();
                   assemblers.reset (new internal::Assembly::AssemblerLists<dim>());
                   set_assemblers();*/
-                  if(parameters.newton_residual == 0)
-                	  parameters.newton_residual = parameters.switch_initial_newton_residual;
+                  //if(parameters.newton_residual == 0 || use_picard == true)
+                	//  parameters.newton_residual = parameters.switch_initial_newton_residual;
 
                   assemble_stokes_system();
                   build_stokes_preconditioner();
@@ -2186,6 +2189,7 @@ namespace aspect
                   newton_residual_velo = system_rhs.block(introspection.block_indices.velocities).l2_norm();
                   newton_residual_pres = system_rhs.block(introspection.block_indices.pressure).l2_norm();
                   newton_residual = std::sqrt(newton_residual_velo * newton_residual_velo + newton_residual_pres * newton_residual_pres);
+
 
 
                   //TODO: need to look at this residual thing. We may need separated tolerances (maybe even absolute and relative tolerances).
@@ -2228,23 +2232,33 @@ namespace aspect
 
                       if (true)//test_newton_residual < (1.0 - alfa * lambda) * newton_residual)
                         {
-                          pcout << "   Norm of rhs = " << newton_residual << ", relative residual: " << newton_residual/initial_newton_residual << ", theta = " << std::max(0.,(1-(parameters.newton_residual/parameters.switch_initial_newton_residual))) << " = (1-(" << parameters.newton_residual << "/" << parameters.switch_initial_newton_residual << ")" <<  std::endl;
+                          pcout << newton_residual/initial_newton_residual << "   Norm of rhs = " << newton_residual << ":" << test_newton_residual  << ", relative residual: " << newton_residual/initial_newton_residual << ", theta = " << std::max(0.,(1-(parameters.newton_residual/parameters.switch_initial_newton_residual))) << " = (1-(" << parameters.newton_residual << "/" << parameters.switch_initial_newton_residual << ")" <<  std::endl;
                           break;
                         }
                       else
                         {
 
                           pcout << "   Iteration " << line_search_iteration << ", with Norm of rhs " << test_newton_residual << " and going to "
-                                << (1.0 - alfa * lambda) * newton_residual << ", relative residual: " << newton_residual/initial_newton_residual << ", theta = " << std::max(0.,(1-(parameters.newton_residual/parameters.switch_initial_newton_residual))) << " = (1-(" << parameters.newton_residual << "/" << parameters.switch_initial_newton_residual << ")" << std::endl;
+                                << (1.0 - alfa * lambda) * newton_residual << ", relative residual: " << newton_residual/initial_newton_residual << ", theta = " << std::max(0.,(1-(parameters.newton_residual/parameters.switch_initial_newton_residual))) << ", sqrt(theta) = " << std::sqrt(std::max(0.,(1-(parameters.newton_residual/parameters.switch_initial_newton_residual)))) << " = sqrt((1-(" << parameters.newton_residual << "/" << parameters.switch_initial_newton_residual << "))" << std::endl;
 
-                          lambda = lambda* 1;//(2.0/3.0);// TODO: make a parameter out of this.
+                          lambda = lambda * (2.0/3.0);// TODO: make a parameter out of this.
                         }
                       line_search_iteration++;
                     }
                   while (line_search_iteration < parameters.max_newton_line_search_iterations);
 
-                  newton_residual = test_newton_residual;
-                  parameters.newton_residual = newton_residual;
+                  //newton_residual = test_newton_residual;
+
+                  if(use_picard == true)
+                  {
+                	  parameters.switch_initial_newton_residual = newton_residual;
+                	  parameters.newton_residual = newton_residual;
+                  }
+                  else
+                  {
+                	  parameters.newton_residual = test_newton_residual;//newton_residual;
+                  }
+
 
                   // We set the linear tolerance for the next iteration using
                   // choice 1 of the Eisenstat-Walker method. We do this because
@@ -2263,6 +2277,8 @@ namespace aspect
                   std::cout << "The linear solver tolerance is set to " << parameters.linear_stokes_solver_tolerance << "," << newton_residual << ", " << stokes_residual  << ", " << newton_residual_old << std::endl;*/
 
                   newton_residual_old = newton_residual;
+
+
 
                   pcout << std::endl;
                   ++nonlinear_iteration_number;

@@ -283,7 +283,8 @@ namespace aspect
 	SimpleNonlinear<dim>::
 	compute_second_invariant(const SymmetricTensor<2,dim> strain_rate, const double min_strain_rate) const
     {
-        const double edot_ii_strict = std::sqrt(deviator(strain_rate)*deviator(strain_rate));//std::sqrt(deviator(in.strain_rate[i])*deviator(in.strain_rate[i]));//2 * std::sqrt(0.5*deviator(in.strain_rate[i])*deviator(in.strain_rate[i]));
+
+        const double edot_ii_strict = std::sqrt(strain_rate*strain_rate);//std::sqrt(deviator(in.strain_rate[i])*deviator(in.strain_rate[i]));//2 * std::sqrt(0.5*deviator(in.strain_rate[i])*deviator(in.strain_rate[i]));
         //const double edot_ii =  std::max(edot_ii_strict, min_strain_rate*min_strain_rate);
         return edot_ii_strict;
     }
@@ -295,7 +296,7 @@ namespace aspect
     {
     	//double eref = std::max(1e-4 * edot_ii,1e-4);
 
-    	return prefactor * pow(edot_ii * edot_ii + eref * eref, alpha / 2);
+    	return std::min(prefactor * pow(edot_ii * edot_ii + eref * eref, alpha / 2),1e24);
     	//return prefactor * std::pow(edot_ii,alpha);
 
     	//return (prefactor / (2 * eref)) * (1/std::pow(eref,alpha)) * pow(edot_ii+eref*eref,alpha/2);
@@ -404,7 +405,7 @@ namespace aspect
                   //       do with effective medium theory. Have to look into this a bit more.
                   const double stress_exponent_inv = (1./stress_exponent[c]);//stress_exponent[c])-1;
                   const double alpha = stress_exponent_inv - 1;
-            	  const double eref = std::max(1e-7 * edot_ii,1e-7);
+            	  const double eref = std::max(1e-15 * edot_ii,1e-15);
 
                   composition_viscosities[c] = compute_viscosity(edot_ii,prefactor[c],alpha,eref);
 
@@ -415,10 +416,10 @@ namespace aspect
                 	  if(true)
                 	  {
                 		  //analytic
-                      if (edot_ii >= min_strain_rate[c])// && composition_viscosities[c] < max_visc[c] && composition_viscosities[c] > min_visc[c])
+                      if (edot_ii >= min_strain_rate[c] && composition_viscosities[c] < 1e24)// && composition_viscosities[c] < max_visc[c] && composition_viscosities[c] > min_visc[c])
                         {
                           //strictly speaking the derivative is this: 0.5 * ((1/stress_exponent)-1) * std::pow(2,2) * out.viscosities[i] * (1/(edot_ii*edot_ii)) * deviator(in.strain_rate[i])
-                          composition_viscosities_derivatives[c] = alpha * composition_viscosities[c] * (1/(edot_ii * edot_ii + eref * eref))  * deviator(in.strain_rate[i]);
+                          composition_viscosities_derivatives[c] = alpha * 1 * composition_viscosities[c] * (1/(edot_ii * edot_ii + eref * eref))  * in.strain_rate[i];
                           /**
                            * EQ 2: Raids euqation of powerlaw
                            */

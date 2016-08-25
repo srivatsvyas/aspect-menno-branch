@@ -2366,7 +2366,7 @@ namespace aspect
               //const double theta = std::max(0,1-(newton_residual/switch_initial_newton_residual));
 
               //1;//(1/3)-1; // TODO:Compute a optimal value for this.
-
+//std::cout << "t="<< theta << std::flush;
               if (assemble_newton_stokes_matrix)
                 {
                   for (unsigned int i=0; i<dofs_per_cell; ++i)
@@ -2375,8 +2375,8 @@ namespace aspect
                         {
                           data.local_matrix(i,j) += ( // using tensor thing is complecating everything quite a bit, so removed it for now.
                                                       scratch.grads_phi_u[i] * 2.0 * eta * scratch.grads_phi_u[j]
-                                                      + theta * 2* (scratch.grads_phi_u[i] * (dviscosities_dstrain_rate * scratch.grads_phi_u[j]) * strain_rate)
-                                                                 //+ scratch.grads_phi_u[j] * (dviscosities_dstrain_rate * scratch.grads_phi_u[i]) * strain_rate)
+                                                      + theta * (scratch.grads_phi_u[i] * (dviscosities_dstrain_rate * scratch.grads_phi_u[j]) * strain_rate
+                                                                 + scratch.grads_phi_u[j] * (dviscosities_dstrain_rate * scratch.grads_phi_u[i]) * strain_rate)
                                                       - (pressure_scaling *
                                                          scratch.div_phi_u[i] * scratch.phi_p[j])
                                                       // finally the term -div(u). note the negative sign to make this
@@ -2399,7 +2399,7 @@ namespace aspect
                 	//  std::cout << "Symmetric." << std::endl;
 
 
-                  if (false)//assemble_newton_stokes_matrix)
+                  if (true)//assemble_newton_stokes_matrix)
                   {
 //std::cout << "Flag 1" << std::endl;
                       SymmetricTensor<4,dim> H;
