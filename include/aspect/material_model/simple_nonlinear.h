@@ -92,7 +92,7 @@ namespace aspect
 
         double compute_second_invariant(const SymmetricTensor<2,dim> strain_rate, const double min_strain_rate) const;
 
-        double compute_viscosity(const double edot_ii,const double prefactor,const double alpha, const double eref) const;
+        double compute_viscosity(const double edot_ii,const double prefactor,const double alpha, const double eref, const double min_visc, const double max_visc) const;
 
         virtual void evaluate(const MaterialModel::MaterialModelInputs<dim> &in,
                               MaterialModel::MaterialModelOutputs<dim> &out) const;
@@ -149,6 +149,8 @@ namespace aspect
         unsigned int n_fields;
         // averaging parameters
         double viscosity_averaging_p;
+
+        bool use_analytical_derivative;
 
 
     };

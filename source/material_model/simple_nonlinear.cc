@@ -292,11 +292,11 @@ namespace aspect
     template <int dim>
     double
 	SimpleNonlinear<dim>::
-	compute_viscosity(const double edot_ii,const double prefactor,const double alpha, const double eref) const
+	compute_viscosity(const double edot_ii,const double prefactor,const double alpha, const double eref, const double min_visc, const double max_visc) const
     {
     	//double eref = std::max(1e-4 * edot_ii,1e-4);
 
-    	return std::min(prefactor * pow(edot_ii * edot_ii + eref * eref, alpha / 2),1e24);
+    	return std::max(std::min(prefactor * pow(edot_ii * edot_ii + eref * eref, alpha / 2),max_visc),min_visc);
     	//return prefactor * std::pow(edot_ii,alpha);
 
     	//return (prefactor / (2 * eref)) * (1/std::pow(eref,alpha)) * pow(edot_ii+eref*eref,alpha/2);
@@ -405,18 +405,18 @@ namespace aspect
                   //       do with effective medium theory. Have to look into this a bit more.
                   const double stress_exponent_inv = (1./stress_exponent[c]);//stress_exponent[c])-1;
                   const double alpha = stress_exponent_inv - 1;
-            	  const double eref = std::max(1e-15 * edot_ii,1e-15);
+            	  const double eref = 1e-20;//std::max(1e-15 * edot_ii,1e-15);
 
-                  composition_viscosities[c] = compute_viscosity(edot_ii,prefactor[c],alpha,eref);
+                  composition_viscosities[c] = compute_viscosity(edot_ii,prefactor[c],alpha,eref,min_visc[c],max_visc[c]);
 
                   Assert(dealii::numbers::is_finite(composition_viscosities[c]),ExcMessage ("Error: Viscosity is not finite."));
                   //std::cout << "Flag 10" << std::endl;
                   if (derivatives != NULL)
                     {
-                	  if(true)
+                	  if(use_analytical_derivative)
                 	  {
                 		  //analytic
-                      if (edot_ii >= min_strain_rate[c] && composition_viscosities[c] < 1e24)// && composition_viscosities[c] < max_visc[c] && composition_viscosities[c] > min_visc[c])
+                      if (edot_ii >= min_strain_rate[c] && composition_viscosities[c] < max_visc[c] && composition_viscosities[c] > min_visc[c])// && composition_viscosities[c] < max_visc[c] && composition_viscosities[c] > min_visc[c])
                         {
                           //strictly speaking the derivative is this: 0.5 * ((1/stress_exponent)-1) * std::pow(2,2) * out.viscosities[i] * (1/(edot_ii*edot_ii)) * deviator(in.strain_rate[i])
                           composition_viscosities_derivatives[c] = alpha * 1 * composition_viscosities[c] * (1/(edot_ii * edot_ii + eref * eref))  * in.strain_rate[i];
@@ -439,9 +439,7 @@ namespace aspect
                             }
                       else
                         {
-                    	  //std::cout << "edot_ii = " << edot_ii << std::endl;
                           composition_viscosities_derivatives[c] = 0;
-                          //std::cout << "SN2: Set " << i << " to 0" << ", edstrict = " << edot_ii_strict << ", min sr = " << min_strain_rate[c] << ", comp visc = " << composition_viscosities[c] << ", max visc = " << max_visc[c] << ", min visc = " << min_visc[c] << std::endl;
                         }
                 	  }
                 	  else
@@ -462,8 +460,8 @@ namespace aspect
 
                 		  double edot_ii_fd;
 
-                		  edot_ii_fd = compute_second_invariant(strain_rate_zero_zero,0);//std::max( std::sqrt(deviator(strain_rate_zero_zero)*deviator(strain_rate_zero_zero)), min_strain_rate[c]);
-                		  double eta_zero_zero = compute_viscosity(edot_ii_fd,prefactor[c],alpha,eref);//prefactor[c] * std::pow(edot_ii_fd,alpha);//std::pow(prefactor[c],-stress_exponent_inv) * std::pow(edot_ii_fd,stress_exponent_inv-1);
+                		  edot_ii_fd = compute_second_invariant(strain_rate_zero_zero,0);
+                		  double eta_zero_zero = compute_viscosity(edot_ii_fd,prefactor[c],alpha,eref,min_visc[c],max_visc[c]);
                 		  double deriv_zero_zero = eta_zero_zero - composition_viscosities[c];
 
                 		  if(deriv_zero_zero != 0)
@@ -479,8 +477,8 @@ namespace aspect
 
                 		  }
 
-                		  edot_ii_fd = compute_second_invariant(strain_rate_one_zero,0);//std::max(std::sqrt(deviator(strain_rate_one_zero)*deviator(strain_rate_one_zero)), min_strain_rate[c]);
-                		  double eta_one_zero = compute_viscosity(edot_ii_fd,prefactor[c],alpha,eref);//prefactor[c] * std::pow(edot_ii_fd,alpha);//std::pow(prefactor[c],-stress_exponent_inv) * std::pow(edot_ii_fd,stress_exponent_inv-1);
+                		  edot_ii_fd = compute_second_invariant(strain_rate_one_zero,0);
+                		  double eta_one_zero = compute_viscosity(edot_ii_fd,prefactor[c],alpha,eref,min_visc[c],max_visc[c]);
                 		  double deriv_one_zero = eta_one_zero - composition_viscosities[c];
 
                 		  if(deriv_one_zero != 0)
@@ -495,8 +493,8 @@ namespace aspect
                 			  }
                 		  }
 
-                		  edot_ii_fd = compute_second_invariant(strain_rate_one_one,0);//std::max(std::sqrt(deviator(strain_rate_one_one)*deviator(strain_rate_one_one)), min_strain_rate[c]);
-                		  double eta_one_one = compute_viscosity(edot_ii_fd,prefactor[c],alpha,eref);//prefactor[c] * std::pow(edot_ii_fd,alpha);//std::pow(prefactor[c],-stress_exponent_inv) * std::pow(edot_ii_fd,stress_exponent_inv-1);
+                		  edot_ii_fd = compute_second_invariant(strain_rate_one_one,0);
+                		  double eta_one_one = compute_viscosity(edot_ii_fd,prefactor[c],alpha,eref,min_visc[c],max_visc[c]);
                 		  double deriv_one_one = eta_one_one - composition_viscosities[c];
 
                 		  if(eta_one_one != 0)
@@ -515,7 +513,7 @@ namespace aspect
                 		  composition_viscosities_derivatives[c][1][0] = deriv_one_zero;
                 		  composition_viscosities_derivatives[c][1][1] = deriv_one_one;
 
-                		  composition_viscosities_derivatives[c] = composition_viscosities_derivatives[c] * alpha;
+                		  //composition_viscosities_derivatives[c] = composition_viscosities_derivatives[c] * alpha;
 
                 	  }
                     }
@@ -648,6 +646,12 @@ namespace aspect
                              "This is the p value in the generalized weighed average eqation: "
                              " mean = \\frac{1}{k}(\\sum_{i=1}^k \\big(c_i \\eta_{\\text{eff}_i}^p)\\big)^{\\frac{1}{p}}. "
                              " Units: $Pa s$");
+
+          // finite difference versus analytical
+          prm.declare_entry ("Use analytical derivative", "false",
+        		             Patterns::Bool(),
+							 "A bool indicating wether to use finite differences to compute the derivative or to use "
+							 "the analytical derivative.");
         }
         prm.leave_subsection();
       }
@@ -697,6 +701,8 @@ namespace aspect
 
           // averaging parameters
           viscosity_averaging_p = prm.get_double("Viscosity averaging p");
+
+          use_analytical_derivative = prm.get_bool("Use analytical derivative");
 
         }
         prm.leave_subsection();

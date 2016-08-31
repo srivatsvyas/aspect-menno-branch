@@ -1972,8 +1972,15 @@ namespace aspect
 
           double max = std::numeric_limits<double>::max();
 
+          //LinearAlgebra::BlockVector global_backup_linearization_point = current_linearization_point;
+          //current_linearization_point = 0;
+          ////current_linearization_point.block(introspection.block_indices.pressure) += search_direction.block(introspection.block_indices.pressure);
+          ////current_linearization_point.block(introspection.block_indices.velocities) += search_direction.block(introspection.block_indices.velocities);
+
           rebuild_stokes_matrix = assemble_newton_stokes_system = true;
           rebuild_stokes_preconditioner = false;
+
+          compute_current_constraints ();
           assemblers.reset (new internal::Assembly::AssemblerLists<dim>());
           set_assemblers();
           assemble_stokes_system();
@@ -1986,8 +1993,11 @@ namespace aspect
           double newton_residual_pres = initial_newton_residual_pres;
           double newton_residual = initial_newton_residual;
           double newton_residual_old = initial_newton_residual;
+
           parameters.switch_initial_newton_residual = initial_newton_residual;
           parameters.newton_residual = initial_newton_residual;
+
+          //current_linearization_point = global_backup_linearization_point;
 
           bool   use_picard = true;
 
@@ -2230,22 +2240,26 @@ namespace aspect
                       test_newton_residual_pres = system_rhs.block(introspection.block_indices.pressure).l2_norm();
                       test_newton_residual = std::sqrt(test_newton_residual_velo * test_newton_residual_velo + test_newton_residual_pres * test_newton_residual_pres);
 
-                      if (true)//test_newton_residual < (1.0 - alfa * lambda) * newton_residual)
+                      if (test_newton_residual < (1.0 - alfa * lambda) * newton_residual || line_search_iteration >= parameters.max_newton_line_search_iterations)
                         {
+                    	  /*if(line_search_iteration >= parameters.max_newton_line_search_iterations)
+                    		  pcout << "Max it" << line_search_iteration << ":" << parameters.max_newton_line_search_iterations << std::endl;
+                    	  if(test_newton_residual < (1.0 - alfa * lambda) * newton_residual)
+                    		  pcout << "other test" << std::endl;*/
                           pcout << newton_residual/initial_newton_residual << "   Norm of rhs = " << newton_residual << ":" << test_newton_residual  << ", relative residual: " << newton_residual/initial_newton_residual << ", theta = " << std::max(0.,(1-(parameters.newton_residual/parameters.switch_initial_newton_residual))) << " = (1-(" << parameters.newton_residual << "/" << parameters.switch_initial_newton_residual << ")" <<  std::endl;
                           break;
                         }
                       else
                         {
 
-                          pcout << "   Iteration " << line_search_iteration << ", with Norm of rhs " << test_newton_residual << " and going to "
-                                << (1.0 - alfa * lambda) * newton_residual << ", relative residual: " << newton_residual/initial_newton_residual << ", theta = " << std::max(0.,(1-(parameters.newton_residual/parameters.switch_initial_newton_residual))) << ", sqrt(theta) = " << std::sqrt(std::max(0.,(1-(parameters.newton_residual/parameters.switch_initial_newton_residual)))) << " = sqrt((1-(" << parameters.newton_residual << "/" << parameters.switch_initial_newton_residual << "))" << std::endl;
+                          pcout << "   Iteration " << line_search_iteration << ", with norm of the rhs " << test_newton_residual << " and going to "
+                                << (1.0 - alfa * lambda) * newton_residual << ", relative residual: " << newton_residual/initial_newton_residual << ", theta = " << std::max(0.,(1-(parameters.newton_residual/parameters.switch_initial_newton_residual))) << std::endl;
 
                           lambda = lambda * (2.0/3.0);// TODO: make a parameter out of this.
                         }
                       line_search_iteration++;
                     }
-                  while (line_search_iteration < parameters.max_newton_line_search_iterations);
+                  while (true);//line_search_iteration < parameters.max_newton_line_search_iterations);
 
                   //newton_residual = test_newton_residual;
 
