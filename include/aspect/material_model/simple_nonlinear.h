@@ -81,15 +81,6 @@ namespace aspect
       public:
         std::vector<double> compute_volume_fractions( const std::vector<double> &compositional_fields) const;
 
-        double p_norm_average ( const std::vector<double> &composition,
-                                const std::vector<double> &parameter_values,
-                                const double p) const;
-        SymmetricTensor<2,dim> p_norm_average_derivatives (const double averaged_parameter,
-                                                           const std::vector<double> &composition,
-                                                           const std::vector<double> &parameter_values,
-                                                           const std::vector<SymmetricTensor<2,dim> > &parameter_derivatives,
-                                                           const double p) const;
-
         double compute_second_invariant(const SymmetricTensor<2,dim> strain_rate, const double min_strain_rate) const;
 
         double compute_viscosity(const double edot_ii,const double prefactor,const double alpha, const double eref, const double min_visc, const double max_visc) const;

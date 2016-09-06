@@ -164,7 +164,7 @@ namespace aspect
       // clear blocks we didn't want to fill
       for (unsigned int block=2; block<dst.n_blocks(); ++block)
         dst.block(block) = 0;
-
+std::cout << "v = " << dst.block(0).l2_norm() << ", p = " << dst.block(1).l2_norm() << std::endl;
       return dst.l2_norm();
     }
 

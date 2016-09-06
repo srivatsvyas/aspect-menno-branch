@@ -2001,7 +2001,7 @@ namespace aspect
 
           bool   use_picard = true;
 
-          pcout << "Initial Newton Stokes residual = " << initial_newton_residual << std::endl << std::endl;
+          pcout << "Initial Newton Stokes residual = " << initial_newton_residual << ", v = " << initial_newton_residual_velo << ", p = " << initial_newton_residual_pres << std::endl << std::endl;
           //assemble_newton_stokes_system = false;
           //assemblers.reset (new internal::Assembly::AssemblerLists<dim>());
           //set_assemblers();
@@ -2246,7 +2246,7 @@ namespace aspect
                     		  pcout << "Max it" << line_search_iteration << ":" << parameters.max_newton_line_search_iterations << std::endl;
                     	  if(test_newton_residual < (1.0 - alfa * lambda) * newton_residual)
                     		  pcout << "other test" << std::endl;*/
-                          pcout << newton_residual/initial_newton_residual << "   Norm of rhs = " << newton_residual << ":" << test_newton_residual  << ", relative residual: " << newton_residual/initial_newton_residual << ", theta = " << std::max(0.,(1-(parameters.newton_residual/parameters.switch_initial_newton_residual))) << " = (1-(" << parameters.newton_residual << "/" << parameters.switch_initial_newton_residual << ")" <<  std::endl;
+                          pcout << newton_residual/initial_newton_residual << "   Norm of rhs = " << newton_residual << ":" << test_newton_residual  << ", relative residual: " << newton_residual/initial_newton_residual << ", v = " << test_newton_residual_velo << ":" << test_newton_residual_velo/initial_newton_residual_velo << ", p = " << test_newton_residual_pres << ":" << test_newton_residual_pres/initial_newton_residual_pres << ", theta = " << std::max(0.,(1-(parameters.newton_residual/parameters.switch_initial_newton_residual))) << " = (1-(" << parameters.newton_residual << "/" << parameters.switch_initial_newton_residual << "), stokes residual = " << stokes_residual  <<  std::endl;
                           break;
                         }
                       else
