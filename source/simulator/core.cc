@@ -23,6 +23,7 @@
 #include <aspect/global.h>
 #include <aspect/assembly.h>
 #include <aspect/utilities.h>
+#include <deal.II/numerics/data_out.h>
 #include <deal.II/base/index_set.h>
 #include <deal.II/base/conditional_ostream.h>
 #include <deal.II/base/quadrature_lib.h>
@@ -1718,7 +1719,9 @@ namespace aspect
 
           assemble_stokes_system();
           build_stokes_preconditioner();
+          denormalize_pressure (current_linearization_point);
           solve_stokes();
+          normalize_pressure (solution);
 
           break;
         }
@@ -1751,7 +1754,9 @@ namespace aspect
 
               assemble_stokes_system();
               build_stokes_preconditioner();
+              denormalize_pressure (current_linearization_point);
               const double stokes_residual = solve_stokes();
+              normalize_pressure (solution);
               current_linearization_point = solution;
 
               pcout << "      Nonlinear Stokes residual: " << stokes_residual << std::endl;
@@ -1826,7 +1831,11 @@ namespace aspect
               if (iteration == 0)
                 initial_stokes_residual = compute_initial_stokes_residual();
 
+              denormalize_pressure (current_linearization_point);
+
               const double stokes_residual = solve_stokes();
+
+              normalize_pressure (solution);
 
               current_linearization_point = solution;
 
@@ -1937,8 +1946,11 @@ namespace aspect
               if (i==0)
                 initial_stokes_residual = compute_initial_stokes_residual();
 
+              denormalize_pressure (current_linearization_point);
+
               const double stokes_residual = solve_stokes();
 
+              normalize_pressure (solution);
 
               pcout << "   Residual after nonlinear iteration " << i+1 << ": " << stokes_residual/initial_stokes_residual << std::endl;
               if (stokes_residual/initial_stokes_residual < parameters.nonlinear_tolerance)
@@ -1980,10 +1992,14 @@ namespace aspect
           rebuild_stokes_matrix = assemble_newton_stokes_system = true;
           rebuild_stokes_preconditioner = false;
 
+          denormalize_pressure(current_linearization_point);
+
           compute_current_constraints ();
           assemblers.reset (new internal::Assembly::AssemblerLists<dim>());
           set_assemblers();
           assemble_stokes_system();
+
+          normalize_pressure(current_linearization_point);
 
           double initial_newton_residual_velo = system_rhs.block(introspection.block_indices.velocities).l2_norm();
           double initial_newton_residual_pres = system_rhs.block(introspection.block_indices.pressure).l2_norm();
@@ -2017,6 +2033,8 @@ namespace aspect
                   std::cout << "set UP to false" << std::endl;
                   //parameters.linear_stokes_solver_tolerance = 1e-15;
                 }
+
+              double stokes_residual;
 
               // TODO: We will use iterated IMPES for now, but we will somehow have to link this to the above solvers,
               //       and make a option available to not do this kind of globalisation at all.
@@ -2122,11 +2140,11 @@ namespace aspect
               else
                 {
 
-                  if (nonlinear_iteration_number > 0)
-                    {
+                  //if (nonlinear_iteration_number > 0)
+                    //{
                       solution.block(introspection.block_indices.pressure) = 0;
                       solution.block(introspection.block_indices.velocities) = 0;
-                    }
+                    //}
 
                   pcout << "Newton iteration number: " << nonlinear_iteration_number << std::endl;
                   // we now switch to the newton system
@@ -2134,6 +2152,9 @@ namespace aspect
 
 
                       pcout << "   Reset assemblers." << std::endl;
+
+                      denormalize_pressure(current_linearization_point);
+
                       compute_current_constraints ();
                       assemblers.reset (new internal::Assembly::AssemblerLists<dim>());
                       set_assemblers();
@@ -2191,16 +2212,48 @@ namespace aspect
                 	//  parameters.newton_residual = parameters.switch_initial_newton_residual;
 
                   assemble_stokes_system();
+
+                  /**
+                   * Eisenstat Walker method for determining the tolerance
+                   */
+                  if(nonlinear_iteration_number > 1)
+                  {
+                	  newton_residual_old = newton_residual;
+                	  newton_residual_velo = system_rhs.block(introspection.block_indices.velocities).l2_norm();
+                	  newton_residual_pres = system_rhs.block(introspection.block_indices.pressure).l2_norm();
+                	  newton_residual = std::sqrt(newton_residual_velo * newton_residual_velo + newton_residual_pres * newton_residual_pres);
+
+
+                	  if(!use_picard)
+                	  {
+                	  //double eta_old = parameters.linear_stokes_solver_tolerance;
+                	  //double eta_new = 0.9 * ((newton_residual * newton_residual) / (newton_residual_old * newton_residual_old));
+                	  //if(0.9 * eta_old * eta_old > 0.1)
+                	  //eta_new = std::max(eta_new, 0.9 * eta_old * eta_old);
+                	  //parameters.linear_stokes_solver_tolerance = std::min(eta_new, 0.5);
+                	  //parameters.linear_stokes_solver_tolerance = std::max(parameters.linear_stokes_solver_tolerance,0.5 * parameters.nonlinear_tolerance / newton_residual);
+                	  //if(nonlinear_iteration_number == 0)
+                	  //newton_residual_old = newton_residual;
+
+                	  parameters.linear_stokes_solver_tolerance =  std::min(1e-3, 0.9 * std::fabs(newton_residual*newton_residual)/(newton_residual_old*newton_residual_old)); //std::pow(0.5,nonlinear_iteration_number+1);std::min(0.5,std::fabs(newton_residual-stokes_residual)/newton_residual_old); //
+
+                	  std::cout << std::endl << "The linear solver tolerance is set to " << parameters.linear_stokes_solver_tolerance << ":" << std::fabs(newton_residual-stokes_residual)/newton_residual_old << "," << stokes_residual << "," << newton_residual << ", " << newton_residual_old << std::endl;
+                	  }
+                  }
                   build_stokes_preconditioner();
+                  LinearAlgebra::BlockVector bs = solution;
+                  //std::cout << "solution norm b = " << bs.block(introspection.block_indices.velocities).l2_norm() << std::endl;
 
+                  stokes_residual = solve_stokes();
 
-                  const double stokes_residual = solve_stokes();
+                  //std::cout << solution.block(0).l2_norm() << ":" << solution.block(1).l2_norm() << std::endl;
 
                   newton_residual_velo = system_rhs.block(introspection.block_indices.velocities).l2_norm();
                   newton_residual_pres = system_rhs.block(introspection.block_indices.pressure).l2_norm();
                   newton_residual = std::sqrt(newton_residual_velo * newton_residual_velo + newton_residual_pres * newton_residual_pres);
 
-
+                  LinearAlgebra::BlockVector as = solution;
+//std::cout << "solution norm a = " << as.block(introspection.block_indices.velocities).l2_norm() << std::endl;
 
                   //TODO: need to look at this residual thing. We may need separated tolerances (maybe even absolute and relative tolerances).
                   //if (newton_residual < parameters.nonlinear_tolerance * initial_stokes_residual)
@@ -2224,8 +2277,11 @@ namespace aspect
 
                       search_direction *= lambda;
 
+
                       current_linearization_point.block(introspection.block_indices.pressure) += search_direction.block(introspection.block_indices.pressure);
                       current_linearization_point.block(introspection.block_indices.velocities) += search_direction.block(introspection.block_indices.velocities);
+
+                      //normalize_pressure(current_linearization_point);
 
                       assemble_newton_stokes_matrix = rebuild_stokes_preconditioner = false;
                       rebuild_stokes_matrix = true;
@@ -2240,13 +2296,14 @@ namespace aspect
                       test_newton_residual_pres = system_rhs.block(introspection.block_indices.pressure).l2_norm();
                       test_newton_residual = std::sqrt(test_newton_residual_velo * test_newton_residual_velo + test_newton_residual_pres * test_newton_residual_pres);
 
-                      if (test_newton_residual < (1.0 - alfa * lambda) * newton_residual || line_search_iteration >= parameters.max_newton_line_search_iterations)
+                      if (test_newton_residual < (1.0 - alfa * lambda) * newton_residual || line_search_iteration >= parameters.max_newton_line_search_iterations || use_picard)
                         {
                     	  /*if(line_search_iteration >= parameters.max_newton_line_search_iterations)
                     		  pcout << "Max it" << line_search_iteration << ":" << parameters.max_newton_line_search_iterations << std::endl;
                     	  if(test_newton_residual < (1.0 - alfa * lambda) * newton_residual)
                     		  pcout << "other test" << std::endl;*/
                           pcout << newton_residual/initial_newton_residual << "   Norm of rhs = " << newton_residual << ":" << test_newton_residual  << ", relative residual: " << newton_residual/initial_newton_residual << ", v = " << test_newton_residual_velo << ":" << test_newton_residual_velo/initial_newton_residual_velo << ", p = " << test_newton_residual_pres << ":" << test_newton_residual_pres/initial_newton_residual_pres << ", theta = " << std::max(0.,(1-(parameters.newton_residual/parameters.switch_initial_newton_residual))) << " = (1-(" << parameters.newton_residual << "/" << parameters.switch_initial_newton_residual << "), stokes residual = " << stokes_residual  <<  std::endl;
+
                           break;
                         }
                       else
@@ -2257,6 +2314,7 @@ namespace aspect
 
                           lambda = lambda * (2.0/3.0);// TODO: make a parameter out of this.
                         }
+
                       line_search_iteration++;
                     }
                   while (true);//line_search_iteration < parameters.max_newton_line_search_iterations);
@@ -2270,7 +2328,11 @@ namespace aspect
                   }
                   else
                   {
-                	  parameters.newton_residual = test_newton_residual;//newton_residual;
+                	  bool use_said_method = false;
+                	  if(use_said_method) //said method
+                		  parameters.newton_residual = test_newton_residual;
+                	  else
+                		  parameters.newton_residual = 0;
                   }
 
 
@@ -2295,6 +2357,7 @@ namespace aspect
 
 
                   pcout << std::endl;
+                  normalize_pressure(current_linearization_point);
                   ++nonlinear_iteration_number;
 
                   if (newton_residual/initial_newton_residual < parameters.nonlinear_tolerance)

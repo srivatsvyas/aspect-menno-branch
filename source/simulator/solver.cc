@@ -100,7 +100,6 @@ namespace aspect
 
       system_matrix.block(0,0).vmult(dst.block(0), src.block(0));
       system_matrix.block(0,1).vmult_add(dst.block(0), src.block(1));
-
       system_matrix.block(1,0).vmult(dst.block(1), src.block(0));
       system_matrix.block(1,1).vmult_add(dst.block(1), src.block(1));
     }
@@ -158,13 +157,14 @@ namespace aspect
 
       // compute b-Ax where A is only the top left 2x2 block
       this->vmult (dst, x);
+
       dst.block(0).sadd (-1, 1, b.block(0));
       dst.block(1).sadd (-1, 1, b.block(1));
 
       // clear blocks we didn't want to fill
       for (unsigned int block=2; block<dst.n_blocks(); ++block)
         dst.block(block) = 0;
-std::cout << "v = " << dst.block(0).l2_norm() << ", p = " << dst.block(1).l2_norm() << std::endl;
+
       return dst.l2_norm();
     }
 
@@ -607,11 +607,19 @@ std::cout << "v = " << dst.block(0).l2_norm() << ", p = " << dst.block(1).l2_nor
     // the vector remap. We need to do the copy because remap has a different
     // layout than current_linearization_point, which also contains all the
     // other solution variables.
-    remap.block (block_vel) = current_linearization_point.block (block_vel);
-    remap.block (block_p) = current_linearization_point.block (block_p);
+    if(parameters.nonlinear_solver != NonlinearSolver::NewtonStokes)
+    {
+        remap.block (block_vel) = current_linearization_point.block (block_vel);
+        remap.block (block_p) = current_linearization_point.block (block_p);
+    }
+    else
+    {
+        remap.block (block_vel) = 0;//current_linearization_point.block (block_vel);
+        remap.block (block_p) = 0;//current_linearization_point.block (block_p);
+    }
+
 
     // before solving we scale the initial solution to the right dimensions
-    denormalize_pressure (remap);
     current_constraints.set_zero (remap);
     remap.block (block_p) /= pressure_scaling;
 
@@ -638,10 +646,9 @@ std::cout << "v = " << dst.block(0).l2_norm() << ", p = " << dst.block(1).l2_nor
     const double residual_p = system_rhs.block(1).l2_norm();
     const double solver_tolerance = parameters.linear_stokes_solver_tolerance *
                                     sqrt(residual_u*residual_u+residual_p*residual_p);
-//std::cout << "solver residual = " << sqrt(residual_u*residual_u+residual_p*residual_p) << std::endl;
+
     // Now overwrite the solution vector again with the current best guess
     // to solve the linear system.
-
     distributed_stokes_solution = remap;
 
     // extract Stokes parts of rhs vector
@@ -785,8 +792,6 @@ std::cout << "v = " << dst.block(0).l2_norm() << ", p = " << dst.block(1).l2_nor
     solution.block(block_p) = distributed_stokes_solution.block(block_p);
 
     remove_nullspace(solution, distributed_stokes_solution);
-
-    normalize_pressure(solution);
 
     // print the number of iterations to screen and record it in the
     // statistics file

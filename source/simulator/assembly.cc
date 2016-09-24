@@ -2142,7 +2142,8 @@ namespace aspect
         void
         local_assemble_stokes_preconditioner (const double                                             pressure_scaling,
                                               internal::Assembly::Scratch::StokesPreconditioner<dim>  &scratch,
-                                              internal::Assembly::CopyData::StokesPreconditioner<dim> &data) const
+                                              internal::Assembly::CopyData::StokesPreconditioner<dim> &data,
+											  double theta) const
         {
           const Introspection<dim> &introspection = this->introspection();
           const FiniteElement<dim> &fe = scratch.finite_element_values.get_fe();
@@ -2183,9 +2184,23 @@ namespace aspect
                   {
                     if (fe.system_to_component_index(i).first ==
                         fe.system_to_component_index(j).first)
+                    {
+                  	  const double denom = (std::sqrt(strain_rate*strain_rate)*std::sqrt(dviscosities_dstrain_rate*dviscosities_dstrain_rate))-(strain_rate*dviscosities_dstrain_rate);
+                  	  double alpha;
+                  	  if(denom == 0)
+                  		  alpha = 1.0;
+                  	  else
+                  	  {
+                  		  alpha = (2.0*eta)/denom;
+                  		  if(alpha >= 1.0)
+                  			  alpha = 1.0;
+                  		  else
+                  		  alpha = std::max(0.0,0.5*alpha);
+                  	  }
+                  	  alpha = 1;
                       data.local_matrix(i, j) += (
                                                    scratch.grads_phi_u[i] * 2.0 * eta * scratch.grads_phi_u[j]
-                                                   + alpha * (scratch.grads_phi_u[i] * (dviscosities_dstrain_rate * scratch.grads_phi_u[j]) * strain_rate
+                                                   + theta * alpha * (scratch.grads_phi_u[i] * (dviscosities_dstrain_rate * scratch.grads_phi_u[j]) * strain_rate
                                                               + scratch.grads_phi_u[j] * (dviscosities_dstrain_rate * scratch.grads_phi_u[i]) * strain_rate)
                                                    + (1. / eta) * pressure_scaling
                                                    * pressure_scaling
@@ -2193,6 +2208,7 @@ namespace aspect
                                                       .phi_p[j]))
                                                  * scratch.finite_element_values.JxW(
                                                    q);
+                    }
                   }
             }
         }
@@ -2372,11 +2388,28 @@ namespace aspect
                   for (unsigned int i=0; i<dofs_per_cell; ++i)
                     {
                       for (unsigned int j=0; j<dofs_per_cell; ++j)
-                        {
+                      {
+                    	  const double denom = (std::sqrt(strain_rate*strain_rate)*std::sqrt(dviscosities_dstrain_rate*dviscosities_dstrain_rate))-(strain_rate*dviscosities_dstrain_rate);
+                    	  double alpha;
+                    	  if(denom == 0)
+                    		  alpha = 1.0;
+                    	  else
+                    	  {
+                    		  alpha = (2.0*eta)/denom;
+                    		  if(alpha >= 1.0)
+                    			  alpha = 1.0;
+                    		  else
+                    		  alpha = std::max(0.0,0.5*alpha);
+                    	  }
+                    	  alpha = 1;
+                    	  //if(theta != 0)
+                    	  //std::cout << dviscosities_dpressure << "; " << std::flush;
+                    	  //std::cout << alpha << ":" << denom << "=" << std::sqrt(strain_rate*strain_rate) << "*" << std::sqrt(dviscosities_dstrain_rate*dviscosities_dstrain_rate) << "-" << strain_rate*dviscosities_dstrain_rate << "; " << std::flush;
                           data.local_matrix(i,j) += ( // using tensor thing is complecating everything quite a bit, so removed it for now.
                                                       scratch.grads_phi_u[i] * 2.0 * eta * scratch.grads_phi_u[j]
-                                                      + theta * (scratch.grads_phi_u[i] * (dviscosities_dstrain_rate * scratch.grads_phi_u[j]) * strain_rate
+                                                      + theta * alpha * (scratch.grads_phi_u[i] * (dviscosities_dstrain_rate * scratch.grads_phi_u[j]) * strain_rate
                                                                  + scratch.grads_phi_u[j] * (dviscosities_dstrain_rate * scratch.grads_phi_u[i]) * strain_rate)
+													  + theta * pressure_scaling * scratch.grads_phi_u[i] * 2.0 * dviscosities_dpressure * scratch.phi_p[j] * strain_rate
                                                       - (pressure_scaling *
                                                          scratch.div_phi_u[i] * scratch.phi_p[j])
                                                       // finally the term -div(u). note the negative sign to make this
@@ -2384,8 +2417,13 @@ namespace aspect
                                                       - (pressure_scaling *
                                                          scratch.phi_p[i] * scratch.div_phi_u[j]))
                                                     * scratch.finite_element_values.JxW(q);
+                          //if(dviscosities_dpressure != 0)
+                          //std::cout << "pdab = " << theta * pressure_scaling * pressure_scaling * scratch.grads_phi_u[i] * 2.0 * dviscosities_dpressure * scratch.phi_p[j] * strain_rate <<
+                        	//	  ", dvdp = " << dviscosities_dpressure << ", ps = " << pressure_scaling << std::endl;
                           Assert(dealii::numbers::is_finite(data.local_matrix(i,j)),ExcMessage ("Error: Assembly matrix is not finite."));
                         }
+                      //if(theta != 0)
+                      //std::cout << std::endl;
                     }
 
 
@@ -3766,7 +3804,10 @@ namespace aspect
         assemblers->local_assemble_stokes_preconditioner
         .connect (std_cxx11::bind(&aspect::Assemblers::NewtonStokes<dim>::local_assemble_stokes_preconditioner,
                                   std_cxx11::cref (*newton_stokes_system_assembler),
-                                  std_cxx11::_1, std_cxx11::_2, std_cxx11::_3));
+                                  std_cxx11::_1,
+								  std_cxx11::_2,
+								  std_cxx11::_3,
+								  std::max(0.0,1-(parameters.newton_residual/parameters.switch_initial_newton_residual))));
 
         if (material_model->is_compressible())
           assemblers->local_assemble_stokes_system
