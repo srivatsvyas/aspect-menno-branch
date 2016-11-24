@@ -2143,8 +2143,9 @@ namespace aspect
         local_assemble_stokes_preconditioner (const double                                             pressure_scaling,
                                               internal::Assembly::Scratch::StokesPreconditioner<dim>  &scratch,
                                               internal::Assembly::CopyData::StokesPreconditioner<dim> &data,
-											  double theta) const
+											  const double* theta_p) const
         {
+          const double theta = *theta_p;
           const Introspection<dim> &introspection = this->introspection();
           const FiniteElement<dim> &fe = scratch.finite_element_values.get_fe();
           const unsigned int   dofs_per_cell   = fe.dofs_per_cell;
@@ -2164,44 +2165,22 @@ namespace aspect
               const SymmetricTensor<2,dim> strain_rate = scratch.material_model_inputs.strain_rate[q];
               //TODO: This might be nessesary for the proconditioning later?
               //const double velocity_divergence = scratch.velocity_divergence[q];
-
-              AssertThrow(scratch.material_model_outputs.template get_additional_output<MaterialModel::MaterialModelDerivatives<dim> >() != NULL
-                          ,ExcMessage ("Error: The newton method requires the derivatives"));
-
-              MaterialModel::MaterialModelDerivatives<dim> *derivatives;
-
-              derivatives = scratch.material_model_outputs.template get_additional_output<MaterialModel::MaterialModelDerivatives<dim> >();
-
-              const SymmetricTensor<2,dim> dviscosities_dstrain_rate = derivatives->dviscosities_dstrain_rate[q];
-              const double                 dviscosities_dpressure    = derivatives->dviscosities_dpressure[q];
+              //SymmetricTensor<2,dim> dviscosities_dstrain_rate;
+              //double dviscosities_dpressure;
 
               const SymmetricTensor<4, dim> &stress_strain_director = scratch .material_model_outputs.stress_strain_directors[q];
               const bool use_tensor = (stress_strain_director != dealii::identity_tensor<dim>());
 
-              const double alpha = 1; // TODO:Compute a optimal value for this.
-              for (unsigned int i = 0; i < dofs_per_cell; ++i)
-                for (unsigned int j = 0; j < dofs_per_cell; ++j)
-                  {
-                    if (fe.system_to_component_index(i).first ==
-                        fe.system_to_component_index(j).first)
+              if(theta == 0)
+              {
+                  for (unsigned int i = 0; i < dofs_per_cell; ++i)
+                    for (unsigned int j = 0; j < dofs_per_cell; ++j)
                     {
-                  	  const double denom = (std::sqrt(strain_rate*strain_rate)*std::sqrt(dviscosities_dstrain_rate*dviscosities_dstrain_rate))-(strain_rate*dviscosities_dstrain_rate);
-                  	  double alpha;
-                  	  if(denom == 0)
-                  		  alpha = 1.0;
-                  	  else
-                  	  {
-                  		  alpha = (2.0*eta)/denom;
-                  		  if(alpha >= 1.0)
-                  			  alpha = 1.0;
-                  		  else
-                  		  alpha = std::max(0.0,0.5*alpha);
-                  	  }
-                  	  alpha = 1;
+                    	if (fe.system_to_component_index(i).first ==
+                    			fe.system_to_component_index(j).first)
+                    	{
                       data.local_matrix(i, j) += (
                                                    scratch.grads_phi_u[i] * 2.0 * eta * scratch.grads_phi_u[j]
-                                                   + theta * alpha * (scratch.grads_phi_u[i] * (dviscosities_dstrain_rate * scratch.grads_phi_u[j]) * strain_rate
-                                                              + scratch.grads_phi_u[j] * (dviscosities_dstrain_rate * scratch.grads_phi_u[i]) * strain_rate)
                                                    + (1. / eta) * pressure_scaling
                                                    * pressure_scaling
                                                    * (scratch.phi_p[i] * scratch
@@ -2210,6 +2189,53 @@ namespace aspect
                                                    q);
                     }
                   }
+              }
+              else
+              {
+                  AssertThrow(scratch.material_model_outputs.template get_additional_output<MaterialModel::MaterialModelDerivatives<dim> >() != NULL
+                              			  ,ExcMessage ("Error: The newton method requires the derivatives"));
+
+                  MaterialModel::MaterialModelDerivatives<dim> *derivatives;
+            	  derivatives = scratch.material_model_outputs.template get_additional_output<MaterialModel::MaterialModelDerivatives<dim> >();
+
+                  const SymmetricTensor<2,dim> dviscosities_dstrain_rate = derivatives->dviscosities_dstrain_rate[q];
+
+    			  double alpha = 0;
+    			  const double denom = std::sqrt((strain_rate*strain_rate)*(dviscosities_dstrain_rate*dviscosities_dstrain_rate))-(strain_rate*dviscosities_dstrain_rate);
+    			  if(denom == 0)
+    				  alpha = 1.0;
+    			  else
+    			  {
+    				  alpha = (2.0*eta)/denom;
+    				  if(alpha >= 1.0)
+    					  alpha = 1.0;
+    				  else
+    					  alpha = std::max(0.0,0.9*alpha);
+    			  }
+
+    			  const double eta_2 = 2.0 * eta;
+    			  const double theta_alpha = theta * alpha;
+    			  const double eta_inv_pressure_scaling_pressure_scaling = (1. / eta) * pressure_scaling * pressure_scaling;
+              for (unsigned int i = 0; i < dofs_per_cell; ++i)
+            	  for (unsigned int j = 0; j < dofs_per_cell; ++j)
+            	  {
+            		  if (fe.system_to_component_index(i).first ==
+            				  fe.system_to_component_index(j).first)
+            		  {
+                      data.local_matrix(i, j) += (
+                                                   scratch.grads_phi_u[i] * eta_2 * scratch.grads_phi_u[j]
+
+                                                    + theta_alpha * (scratch.grads_phi_u[i] * (dviscosities_dstrain_rate * scratch.grads_phi_u[j]) * strain_rate
+                                                              + scratch.grads_phi_u[j] * (dviscosities_dstrain_rate * scratch.grads_phi_u[i]) * strain_rate)
+                                                   + eta_inv_pressure_scaling_pressure_scaling
+                                                   //* pressure_scaling
+                                                   * (scratch.phi_p[i] * scratch
+                                                      .phi_p[j]))
+                                                 * scratch.finite_element_values.JxW(
+                                                   q);
+                	}
+                }
+              }
             }
         }
 
@@ -2220,8 +2246,9 @@ namespace aspect
                                                    const bool                                       rebuild_stokes_matrix,
                                                    internal::Assembly::Scratch::StokesSystem<dim>  &scratch,
                                                    internal::Assembly::CopyData::StokesSystem<dim> &data,
-												   double theta) const
+												   const double* theta_p) const
         {
+          const double theta = *theta_p;
           //TODO: also implement newton for compressible.
           const Introspection<dim> &introspection = this->introspection();
           const unsigned int dofs_per_cell = scratch.finite_element_values.get_fe().dofs_per_cell;
@@ -2309,8 +2336,9 @@ namespace aspect
                                                      const bool                                       assemble_newton_stokes_matrix,
                                                      internal::Assembly::Scratch::StokesSystem<dim>  &scratch,
                                                      internal::Assembly::CopyData::StokesSystem<dim> &data,
-													 double theta) const
+													 const double* theta_p) const
         {
+          const double theta = *theta_p;
           const Introspection<dim> &introspection = this->introspection();
           const unsigned int dofs_per_cell = scratch.finite_element_values.get_fe().dofs_per_cell;
           const unsigned int n_q_points    = scratch.finite_element_values.n_quadrature_points;
@@ -2332,44 +2360,7 @@ namespace aspect
               const SymmetricTensor<2,dim> strain_rate = scratch.material_model_inputs.strain_rate[q];
               const double velocity_divergence = scratch.velocity_divergence[q];
 
-              // This one is only avaiable in debug mode, because normally the AssertTrow in should already caught the problem.
-              Assert(scratch.material_model_outputs.template get_additional_output<MaterialModel::MaterialModelDerivatives<dim> >() != NULL
-                     ,ExcMessage ("Error: The newton method requires the derivatives"));
 
-              MaterialModel::MaterialModelDerivatives<dim> *derivatives;
-
-              derivatives = scratch.material_model_outputs.template get_additional_output<MaterialModel::MaterialModelDerivatives<dim> >();
-
-              const SymmetricTensor<2,dim> dviscosities_dstrain_rate = derivatives->dviscosities_dstrain_rate[q];
-
-              /*if (assemble_newton_stokes_matrix)
-              {
-              bool testing = true;
-
-              for (unsigned int sample = 0; sample < 10; ++sample)
-              {
-              Tensor<1,dim> tmp;
-              for (unsigned int i=0; i<dim; ++i)
-              //for (unsigned int j=i; j<dim; ++j)
-              tmp[i] = Utilities::generate_normal_random_number (0, 1);
-
-              const double abc = tmp * (dviscosities_dstrain_rate * tmp);
-              if (abc < 0)
-              {
-            	  testing = false;
-            	  std::cout << sample << " Not SPD: " << abc << "; " << std::flush ;
-              }else
-              {
-            	  if(abc != 0)
-            	  std::cout << abc << std::flush;
-              }
-              }
-              if(testing == false)
-              std::cout << std::endl;
-              }*/
-
-
-              const double                 dviscosities_dpressure    = derivatives->dviscosities_dpressure[q];
 
               const SymmetricTensor<4,dim> &stress_strain_director = scratch.material_model_outputs.stress_strain_directors[q];
               const bool use_tensor = (stress_strain_director !=  dealii::identity_tensor<dim> ());
@@ -2379,37 +2370,68 @@ namespace aspect
 
               const double density = scratch.material_model_outputs.densities[q];
 
+              //const SymmetricTensor<2,dim,double> unit_tensor;
+              //unit_tensor=SymmetricTensor<2,dim>::unit_symmetric_tensor();
               //const double theta = std::max(0,1-(newton_residual/switch_initial_newton_residual));
 
-              //1;//(1/3)-1; // TODO:Compute a optimal value for this.
-//std::cout << "t="<< theta << std::flush;
+              //bool alpha_set = false;
+              const double eta_2 = 2.0 * eta;
               if (assemble_newton_stokes_matrix)
                 {
+                  if(theta == 0)
+                  {
+                      for (unsigned int i=0; i<dofs_per_cell; ++i)
+                        {
+                          for (unsigned int j=0; j<dofs_per_cell; ++j)
+                          {
+                              data.local_matrix(i,j) += ( // using tensor thing is complecating everything quite a bit, so removed it for now.
+                                                          scratch.grads_phi_u[i] * 2.0 * eta * scratch.grads_phi_u[j] +
+                                                          - (pressure_scaling *
+                                                             scratch.div_phi_u[i] * scratch.phi_p[j])
+                                                          // finally the term -div(u). note the negative sign to make this
+                                                          // operator adjoint to the grad(p) term
+                                                          - (pressure_scaling *
+                                                             scratch.phi_p[i] * scratch.div_phi_u[j]))
+                                                        * scratch.finite_element_values.JxW(q);
+                          }
+                        }
+                  }
+                  else
+                  {
+                	  // This one is only avaiable in debug mode, because normally the AssertTrow in should already caught the problem.
+                	  Assert(scratch.material_model_outputs.template get_additional_output<MaterialModel::MaterialModelDerivatives<dim> >() != NULL
+                			  ,ExcMessage ("Error: The newton method requires the derivatives"));
+
+                	  MaterialModel::MaterialModelDerivatives<dim> *derivatives;
+                	  derivatives = scratch.material_model_outputs.template get_additional_output<MaterialModel::MaterialModelDerivatives<dim> >();
+                      const SymmetricTensor<2,dim> dviscosities_dstrain_rate = derivatives->dviscosities_dstrain_rate[q];
+                      const double dviscosities_dpressure = derivatives->dviscosities_dpressure[q];
+
+                	  double alpha = 0;
+                	  const double denom = std::sqrt((strain_rate*strain_rate)*(dviscosities_dstrain_rate*dviscosities_dstrain_rate))-(strain_rate*dviscosities_dstrain_rate);
+                	  if(denom == 0)
+                		  alpha = 1.0;
+                	  else
+                	  {
+                		  alpha = (2.0*eta)/denom;
+                		  if(alpha >= 1.0)
+                			  alpha = 1.0;
+                		  else
+                			  alpha = std::max(0.0,0.9*alpha);
+                	  }
+
+                	  const double theta_alpha_2 = theta * alpha * 2;
+                	  const SymmetricTensor<2,dim> theta_pressure_scaling_2_dviscosities_dpressure_strain_rate = theta * pressure_scaling * 2.0 * dviscosities_dpressure * strain_rate;
                   for (unsigned int i=0; i<dofs_per_cell; ++i)
                     {
                       for (unsigned int j=0; j<dofs_per_cell; ++j)
                       {
-                    	  const double denom = (std::sqrt(strain_rate*strain_rate)*std::sqrt(dviscosities_dstrain_rate*dviscosities_dstrain_rate))-(strain_rate*dviscosities_dstrain_rate);
-                    	  double alpha;
-                    	  if(denom == 0)
-                    		  alpha = 1.0;
-                    	  else
-                    	  {
-                    		  alpha = (2.0*eta)/denom;
-                    		  if(alpha >= 1.0)
-                    			  alpha = 1.0;
-                    		  else
-                    		  alpha = std::max(0.0,0.5*alpha);
-                    	  }
-                    	  alpha = 1;
-                    	  //if(theta != 0)
-                    	  //std::cout << dviscosities_dpressure << "; " << std::flush;
-                    	  //std::cout << alpha << ":" << denom << "=" << std::sqrt(strain_rate*strain_rate) << "*" << std::sqrt(dviscosities_dstrain_rate*dviscosities_dstrain_rate) << "-" << strain_rate*dviscosities_dstrain_rate << "; " << std::flush;
                           data.local_matrix(i,j) += ( // using tensor thing is complecating everything quite a bit, so removed it for now.
-                                                      scratch.grads_phi_u[i] * 2.0 * eta * scratch.grads_phi_u[j]
-                                                      + theta * alpha * (scratch.grads_phi_u[i] * (dviscosities_dstrain_rate * scratch.grads_phi_u[j]) * strain_rate
-                                                                 + scratch.grads_phi_u[j] * (dviscosities_dstrain_rate * scratch.grads_phi_u[i]) * strain_rate)
-													  + theta * pressure_scaling * scratch.grads_phi_u[i] * 2.0 * dviscosities_dpressure * scratch.phi_p[j] * strain_rate
+                                                      scratch.grads_phi_u[i] * eta_2 * scratch.grads_phi_u[j]
+                                                       + theta_alpha_2 * (scratch.grads_phi_u[i] * (dviscosities_dstrain_rate * scratch.grads_phi_u[j]) * strain_rate)
+                                                                 //+ scratch.grads_phi_u[j] * (dviscosities_dstrain_rate * scratch.grads_phi_u[i]) * strain_rate)
+													   + scratch.grads_phi_u[i] * scratch.phi_p[j] * theta_pressure_scaling_2_dviscosities_dpressure_strain_rate
+													  //+ theta * pressure_scaling * scratch.grads_phi_u[i] * 2.0 * dviscosities_dpressure * scratch.phi_p[j] * strain_rate
                                                       - (pressure_scaling *
                                                          scratch.div_phi_u[i] * scratch.phi_p[j])
                                                       // finally the term -div(u). note the negative sign to make this
@@ -2420,13 +2442,16 @@ namespace aspect
                           //if(dviscosities_dpressure != 0)
                           //std::cout << "pdab = " << theta * pressure_scaling * pressure_scaling * scratch.grads_phi_u[i] * 2.0 * dviscosities_dpressure * scratch.phi_p[j] * strain_rate <<
                         	//	  ", dvdp = " << dviscosities_dpressure << ", ps = " << pressure_scaling << std::endl;
-                          Assert(dealii::numbers::is_finite(data.local_matrix(i,j)),ExcMessage ("Error: Assembly matrix is not finite."));
+                          //std::cout << data.local_matrix(i,j) << ", theta = " << theta << ", dviscosities_dpressure = " << dviscosities_dpressure << std::endl;
+                          //Assert(dealii::numbers::is_finite(data.local_matrix(i,j)),ExcMessage ("Error: Assembly matrix is not finite."));
                         }
                       //if(theta != 0)
                       //std::cout << std::endl;
                     }
 
 
+                  //if(alpha_set)
+                	  //std::cout << "Set alpha"<< std::endl;
                   /*FullMatrix<double> A_T;
                   A_T.copy_transposed(data.local_matrix);
                   FullMatrix<double> x_loc = data.local_matrix;
@@ -2437,7 +2462,7 @@ namespace aspect
                 	//  std::cout << "Symmetric." << std::endl;
 
 
-                  if (true)//assemble_newton_stokes_matrix)
+                  if (false)//assemble_newton_stokes_matrix)
                   {
 //std::cout << "Flag 1" << std::endl;
                       SymmetricTensor<4,dim> H;
@@ -2535,12 +2560,14 @@ namespace aspect
                   if(testing == false)
                 	  std::cout << std::endl;
                   }
-
+                  }
                 }
+              //if((pressure != 0 || velocity_divergence != 0) && this->get_timestep_number() > 0)
+            	 // std::cout << pressure << "," << velocity_divergence << "," << strain_rate << std::endl;
               for (unsigned int i=0; i<dofs_per_cell; ++i)
                 {
                   data.local_rhs(i) -= ( // using tensor thing is complecating everything quite a bit, so removed it for now.
-                                         (eta * 2.0 * (scratch.grads_phi_u[i] * strain_rate))
+                                         (eta_2 * (scratch.grads_phi_u[i] * strain_rate))
                                          // because we now have the real pressure, we have to divide it by the pressure scaling
                                          // to get it to the same pressure units. This means the pressure scaling term drops in
                                          //this term.
@@ -2548,7 +2575,7 @@ namespace aspect
                                          - (pressure_scaling * scratch.phi_p[i] * velocity_divergence)
                                          - density * gravity * scratch.phi_u[i])
                                        * scratch.finite_element_values.JxW(q);
-                  Assert(dealii::numbers::is_finite(data.local_rhs(i)),ExcMessage ("Error: Assembly rhs is not finite."));
+                  //Assert(dealii::numbers::is_finite(data.local_rhs(i)),ExcMessage ("Error: Assembly rhs is not finite."));
                 }
             }
           //std::cout << "End loop!" << std::endl;
@@ -3807,7 +3834,7 @@ namespace aspect
                                   std_cxx11::_1,
 								  std_cxx11::_2,
 								  std_cxx11::_3,
-								  std::max(0.0,1-(parameters.newton_residual/parameters.switch_initial_newton_residual))));
+								  &parameters.newton_theta));
 
         if (material_model->is_compressible())
           assemblers->local_assemble_stokes_system
@@ -3818,7 +3845,7 @@ namespace aspect
                                     std_cxx11::_3,//assemble_newton_stokes_matrix,
                                     std_cxx11::_4,
                                     std_cxx11::_5,
-									std::max(0.0,1-(parameters.newton_residual/parameters.switch_initial_newton_residual))));
+									&parameters.newton_theta));
         else
           assemblers->local_assemble_stokes_system
           .connect (std_cxx11::bind(&aspect::Assemblers::NewtonStokes<dim>::local_assemble_stokes_system_incompressible,
@@ -3828,7 +3855,7 @@ namespace aspect
                                     std_cxx11::_3,//assemble_newton_stokes_matrix,
                                     std_cxx11::_4,
                                     std_cxx11::_5,
-									std::max(0.0,1-(parameters.newton_residual/parameters.switch_initial_newton_residual))));
+									&parameters.newton_theta));
         assembler_objects.push_back (std_cxx11::unique_ptr<internal::Assembly::Assemblers::AssemblerBase<dim> >
                                      (newton_stokes_system_assembler));
 
@@ -3919,8 +3946,10 @@ namespace aspect
 
     data.local_matrix = 0;
 
-    if (assemble_newton_stokes_system == true)
+    if (assemble_newton_stokes_system == true  && parameters.newton_theta != 0)
+    {
       scratch.material_model_outputs.create_additional_material_outputs(scratch.material_model_inputs.temperature.size(), scratch.material_model_inputs.composition.size());
+    }
     compute_material_model_input_values (current_linearization_point,
                                          scratch.finite_element_values,
                                          cell,
@@ -4095,8 +4124,10 @@ namespace aspect
       data.local_pressure_shape_function_integrals = 0;
 //std::cout << "b" << assemble_newton_stokes_system;
     // initialize the material model data on the cell
-    if (assemble_newton_stokes_system == true)
+    if (assemble_newton_stokes_system == true && parameters.newton_theta != 0)
+    {
       scratch.material_model_outputs.create_additional_material_outputs(scratch.material_model_inputs.temperature.size(), scratch.material_model_inputs.composition.size());
+    }
     compute_material_model_input_values (current_linearization_point,
                                          scratch.finite_element_values,
                                          cell,
@@ -4120,7 +4151,7 @@ namespace aspect
 
     // trigger the invocation of the various functions that actually do
     // all of the assembling
-    if (assemble_newton_stokes_system ==false)
+    if (assemble_newton_stokes_system == false)
       assemblers->local_assemble_stokes_system(cell, pressure_scaling, rebuild_stokes_matrix,
                                                scratch, data);
     else
@@ -4193,7 +4224,15 @@ namespace aspect
   template <int dim>
   void Simulator<dim>::assemble_stokes_system ()
   {
-    computing_timer.enter_section ("   Assemble Stokes system");
+	  if(assemble_newton_stokes_matrix)
+	  {
+		  if(parameters.newton_theta == 0)
+			  computing_timer.enter_section ("   Assemble Stokes system picard");
+		  else
+			  computing_timer.enter_section ("   Assemble Stokes system newton");
+	  }
+	  else
+		computing_timer.enter_section ("   Assemble Stokes system rhs");
 
     if (rebuild_stokes_matrix == true)
       system_matrix = 0;

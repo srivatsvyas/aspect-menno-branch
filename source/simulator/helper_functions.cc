@@ -894,6 +894,7 @@ namespace aspect
                                                         remap.block(1),
                                                         system_rhs.block(0));
         residual_p = system_rhs.block(block_p).l2_norm();
+        std::cout << "init res = " << sqrt(residual_u*residual_u+residual_p*residual_p) << ", v = " << residual_u << ", p = " << residual_p << std::endl;
         return sqrt(residual_u*residual_u+residual_p*residual_p);
       }
   }

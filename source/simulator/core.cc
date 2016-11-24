@@ -1984,362 +1984,270 @@ namespace aspect
 
           double max = std::numeric_limits<double>::max();
 
-          //LinearAlgebra::BlockVector global_backup_linearization_point = current_linearization_point;
-          //current_linearization_point = 0;
-          ////current_linearization_point.block(introspection.block_indices.pressure) += search_direction.block(introspection.block_indices.pressure);
-          ////current_linearization_point.block(introspection.block_indices.velocities) += search_direction.block(introspection.block_indices.velocities);
+          double initial_newton_residual_velo = 0;
+          double initial_newton_residual_pres = 0;
+          double initial_newton_residual = 0;
 
-          rebuild_stokes_matrix = assemble_newton_stokes_system = true;
-          rebuild_stokes_preconditioner = false;
+          double newton_residual_velo = 0;
+          double newton_residual_pres = 0;
+          double newton_residual = 0;
+          double newton_residual_old = 0;
 
-          denormalize_pressure(current_linearization_point);
-
-          compute_current_constraints ();
-          assemblers.reset (new internal::Assembly::AssemblerLists<dim>());
-          set_assemblers();
-          assemble_stokes_system();
-
-          normalize_pressure(current_linearization_point);
-
-          double initial_newton_residual_velo = system_rhs.block(introspection.block_indices.velocities).l2_norm();
-          double initial_newton_residual_pres = system_rhs.block(introspection.block_indices.pressure).l2_norm();
-          double initial_newton_residual = std::sqrt(initial_newton_residual_velo * initial_newton_residual_velo + initial_newton_residual_pres * initial_newton_residual_pres);
-
-          double newton_residual_velo = initial_newton_residual_velo;
-          double newton_residual_pres = initial_newton_residual_pres;
-          double newton_residual = initial_newton_residual;
-          double newton_residual_old = initial_newton_residual;
-
-          parameters.switch_initial_newton_residual = initial_newton_residual;
-          parameters.newton_residual = initial_newton_residual;
-
-          //current_linearization_point = global_backup_linearization_point;
+          parameters.switch_initial_newton_residual = 1;
+          parameters.newton_residual = 1;
+          parameters.newton_theta = 0;
 
           bool   use_picard = true;
-
-          pcout << "Initial Newton Stokes residual = " << initial_newton_residual << ", v = " << initial_newton_residual_velo << ", p = " << initial_newton_residual_pres << std::endl << std::endl;
-          //assemble_newton_stokes_system = false;
-          //assemblers.reset (new internal::Assembly::AssemblerLists<dim>());
-          //set_assemblers();
-          //assemble_stokes_system();
 
           do
             {
         	  assemble_newton_stokes_system = true;
-              if (/*assemble_newton_stokes_system == false &&*/ use_picard == true && (max <= parameters.nonlinear_switch_tolerance || nonlinear_iteration_number >= parameters.min_pre_newton_nonlinear_iterations))
-                {
-                  //assemble_newton_stokes_system = true;
-                  use_picard = false;
-                  std::cout << "set UP to false" << std::endl;
-                  //parameters.linear_stokes_solver_tolerance = 1e-15;
-                }
 
-              double stokes_residual;
 
-              // TODO: We will use iterated IMPES for now, but we will somehow have to link this to the above solvers,
-              //       and make a option available to not do this kind of globalisation at all.
-              if (false)//assemble_newton_stokes_system == false)//false
-                {
-                  if (use_picard == false)
-                    {
-                      pcout << "Reset assemblers." << std::endl;
-                      assemble_newton_stokes_system = false;
-                      assemble_newton_stokes_matrix = false;
+        	  double stokes_residual = 0;
 
-                      compute_current_constraints ();
+        	  solution.block(introspection.block_indices.pressure) = 0;
+        	  solution.block(introspection.block_indices.velocities) = 0;
 
-                      assemblers.reset (new internal::Assembly::AssemblerLists<dim>());
-                      set_assemblers();
-                      use_picard = true;
-                    }
+              pcout << "Newton iteration number: " << nonlinear_iteration_number << std::endl;
 
-                  /////////////////////// ITTERTED IMPES IN NEWTON STOKES ///////////////////////
-                  pcout << "IMPES"<< std::endl;
-                  max = 0.0;
-                  assemble_advection_system(AdvectionField::temperature());
-                  build_advection_preconditioner(AdvectionField::temperature(),
-                                                 T_preconditioner);
+              assemble_advection_system(AdvectionField::temperature());
+              build_advection_preconditioner(AdvectionField::temperature(),
+            		  T_preconditioner);
 
-                  if (nonlinear_iteration_number == 0)
-                    initial_temperature_residual = system_rhs.block(introspection.block_indices.temperature).l2_norm();
+              if (nonlinear_iteration_number == 0)
+            	  initial_temperature_residual = system_rhs.block(introspection.block_indices.temperature).l2_norm();
 
-                  const double temperature_residual = solve_advection(AdvectionField::temperature());
+              const double temperature_residual = solve_advection(AdvectionField::temperature());
 
-                  current_linearization_point.block(introspection.block_indices.temperature)
-                    = solution.block(introspection.block_indices.temperature);
-                  rebuild_stokes_matrix = true;
-                  std::vector<double> composition_residual (parameters.n_compositional_fields,0);
+              current_linearization_point.block(introspection.block_indices.temperature)
+                    		= solution.block(introspection.block_indices.temperature);
+              rebuild_stokes_matrix = true;
+              std::vector<double> composition_residual (parameters.n_compositional_fields,0);
 
-                  for (unsigned int c=0; c<parameters.n_compositional_fields; ++c)
-                    {
-                      assemble_advection_system (AdvectionField::composition(c));
-                      build_advection_preconditioner(AdvectionField::composition(c),
-                                                     C_preconditioner);
+              for (unsigned int c=0; c<parameters.n_compositional_fields; ++c)
+              {
+            	  assemble_advection_system (AdvectionField::composition(c));
+            	  build_advection_preconditioner(AdvectionField::composition(c),
+            			  C_preconditioner);
 
-                      if (nonlinear_iteration_number == 0)
-                        initial_composition_residual[c] = system_rhs.block(introspection.block_indices.compositional_fields[c]).l2_norm();
+            	  if (nonlinear_iteration_number == 0)
+            		  initial_composition_residual[c] = system_rhs.block(introspection.block_indices.compositional_fields[c]).l2_norm();
 
-                      composition_residual[c]
-                        = solve_advection(AdvectionField::composition(c));
-                    }
+            	  composition_residual[c]
+									   = solve_advection(AdvectionField::composition(c));
+              }
 
-                  // for consistency we update the current linearization point only after we have solved
-                  // all fields, so that we use the same point in time for every field when solving
-                  for (unsigned int c=0; c<parameters.n_compositional_fields; ++c)
-                    current_linearization_point.block(introspection.block_indices.compositional_fields[c])
-                      = solution.block(introspection.block_indices.compositional_fields[c]);
+              // for consistency we update the current linearization point only after we have solved
+			  // all fields, so that we use the same point in time for every field when solving
+              for (unsigned int c=0; c<parameters.n_compositional_fields; ++c)
+            	  current_linearization_point.block(introspection.block_indices.compositional_fields[c])
+				  = solution.block(introspection.block_indices.compositional_fields[c]);
 
-                  // the Stokes matrix depends on the viscosity. if the viscosity
-                  // depends on other solution variables, then after we need to
-                  // update the Stokes matrix in every time step and so need to set
-                  // the following flag. if we change the Stokes matrix we also
-                  // need to update the Stokes preconditioner.
-                  if (stokes_matrix_depends_on_solution() == true)
-                    rebuild_stokes_matrix = rebuild_stokes_preconditioner = true;
+              if(nonlinear_iteration_number == 0)
+              {
+            	  parameters.newton_theta = 0;
+            	  //std::cout << "compute_initial_stokes_residual() = " << compute_initial_stokes_residual() << std::endl;
+            	  //normalize_pressure(current_linearization_point);
+            	  LinearAlgebra::BlockVector global_backup_linearization_point = current_linearization_point;
+            	  current_linearization_point.block(introspection.block_indices.velocities) = 0;
 
-                  assemble_stokes_system();
-                  build_stokes_preconditioner();
+            	  rebuild_stokes_matrix = assemble_newton_stokes_system = true;
+            	  rebuild_stokes_preconditioner = false;
 
-                  if (nonlinear_iteration_number == 0)
-                    initial_stokes_residual = compute_initial_stokes_residual();
+            	  //pcout << "   Reset assemblers." << std::endl;
+            	  denormalize_pressure(current_linearization_point);
 
-                  const double stokes_residual = solve_stokes();
+            	  compute_current_constraints ();
+            	  assemblers.reset (new internal::Assembly::AssemblerLists<dim>());
+            	  set_assemblers();
+            	  assemble_stokes_system();
 
-                  current_linearization_point = solution;
+            	  normalize_pressure(current_linearization_point);
 
-                  // write the residual output in the same order as the output when
-                  // solving the equations
-                  pcout << "      " << nonlinear_iteration_number << ": Nonlinear residuals: " << temperature_residual;
+            	  initial_newton_residual_velo = system_rhs.block(introspection.block_indices.velocities).l2_norm();
+            	  initial_newton_residual_pres = system_rhs.block(introspection.block_indices.pressure).l2_norm();
+            	  initial_newton_residual = std::sqrt(initial_newton_residual_velo * initial_newton_residual_velo + initial_newton_residual_pres * initial_newton_residual_pres);
 
-                  for (unsigned int c=0; c<parameters.n_compositional_fields; ++c)
-                    pcout << ", " << composition_residual[c];
+            	  current_linearization_point.block(introspection.block_indices.velocities) = global_backup_linearization_point.block(introspection.block_indices.velocities);
 
-                  pcout << ", " << stokes_residual;
-
-                  pcout << std::endl;
-
-                  parameters.switch_initial_newton_residual = stokes_residual;
-
-                  for (unsigned int c=0; c<parameters.n_compositional_fields; ++c)
-                    if (initial_composition_residual[c]>0)
-                      max = std::max(composition_residual[c]/initial_composition_residual[c],max);
-                  if (initial_stokes_residual>0)
-                    max = std::max(stokes_residual/initial_stokes_residual, max);
-                  if (initial_temperature_residual>0)
-                    max = std::max(temperature_residual/initial_temperature_residual, max);
-                  pcout << "      Total relative nonlinear residual: " << max << std::endl;
-                  pcout << std::endl
-                        << std::endl;
-                  //if (max < parameters.nonlinear_tolerance)
-                  //  break;
-
-                  ++nonlinear_iteration_number;
-
-                  /////////////////////// ITTERTED IMPES IN NEWTON STOKES ///////////////////////
-                }
+            	  parameters.switch_initial_newton_residual = initial_newton_residual;
+            	  parameters.newton_residual = initial_newton_residual;
+            	  pcout << "   Initial Newton Stokes residual = " << initial_newton_residual << ", v = " << initial_newton_residual_velo << ", p = " << initial_newton_residual_pres << std::endl << std::endl;
+              }
               else
-                {
-
-                  //if (nonlinear_iteration_number > 0)
-                    //{
-                      solution.block(introspection.block_indices.pressure) = 0;
-                      solution.block(introspection.block_indices.velocities) = 0;
-                    //}
-
-                  pcout << "Newton iteration number: " << nonlinear_iteration_number << std::endl;
-                  // we now switch to the newton system
-                  assemble_newton_stokes_system = assemble_newton_stokes_matrix = true;
+              {
+            	  parameters.newton_theta = std::max(0.,(1-(parameters.newton_residual/parameters.switch_initial_newton_residual)));
+            	  //std::cout << "newton_theta = " << parameters.newton_theta << std::endl;
+              }
 
 
-                      pcout << "   Reset assemblers." << std::endl;
+              assemble_newton_stokes_system = assemble_newton_stokes_matrix = true;
 
-                      denormalize_pressure(current_linearization_point);
 
-                      compute_current_constraints ();
-                      assemblers.reset (new internal::Assembly::AssemblerLists<dim>());
-                      set_assemblers();
-                      //if (use_picard == true)
-                      //{
-                      //use_picard = false;
-                    //}
 
-                  assemble_advection_system(AdvectionField::temperature());
-                  build_advection_preconditioner(AdvectionField::temperature(),
-                                                 T_preconditioner);
 
-                  if (nonlinear_iteration_number == 0)
-                    initial_temperature_residual = system_rhs.block(introspection.block_indices.temperature).l2_norm();
+              denormalize_pressure(current_linearization_point);
 
-                  const double temperature_residual = solve_advection(AdvectionField::temperature());
+              compute_current_constraints ();
 
-                  current_linearization_point.block(introspection.block_indices.temperature)
-                    = solution.block(introspection.block_indices.temperature);
-                  rebuild_stokes_matrix = true;
-                  std::vector<double> composition_residual (parameters.n_compositional_fields,0);
+              if (use_picard == true && (max <= parameters.nonlinear_switch_tolerance || nonlinear_iteration_number >= parameters.min_pre_newton_nonlinear_iterations || timestep_number != 0))
+              {
+            	  //assemble_newton_stokes_system = true;
+            	  use_picard = false;
+            	  pcout << "set Use Picard to false" << std::endl;
+              }
 
-                  for (unsigned int c=0; c<parameters.n_compositional_fields; ++c)
-                    {
-                      assemble_advection_system (AdvectionField::composition(c));
-                      build_advection_preconditioner(AdvectionField::composition(c),
-                                                     C_preconditioner);
 
-                      if (nonlinear_iteration_number == 0)
-                        initial_composition_residual[c] = system_rhs.block(introspection.block_indices.compositional_fields[c]).l2_norm();
 
-                      composition_residual[c]
-                        = solve_advection(AdvectionField::composition(c));
-                    }
+              // the Stokes matrix depends on the viscosity. if the viscosity
+              // depends on other solution variables, then after we need to
+              // update the Stokes matrix in every time step and so need to set
+              // the following flag. if we change the Stokes matrix we also
+              // need to update the Stokes preconditioner.
+              //if (stokes_matrix_depends_on_solution() == true)
+              rebuild_stokes_matrix = rebuild_stokes_preconditioner = assemble_newton_stokes_matrix = true;
 
-                  // for consistency we update the current linearization point only after we have solved
-                  // all fields, so that we use the same point in time for every field when solving
-                  for (unsigned int c=0; c<parameters.n_compositional_fields; ++c)
-                    current_linearization_point.block(introspection.block_indices.compositional_fields[c])
-                      = solution.block(introspection.block_indices.compositional_fields[c]);
-
-                  // the Stokes matrix depends on the viscosity. if the viscosity
-                  // depends on other solution variables, then after we need to
-                  // update the Stokes matrix in every time step and so need to set
-                  // the following flag. if we change the Stokes matrix we also
-                  // need to update the Stokes preconditioner.
-                  //if (stokes_matrix_depends_on_solution() == true)
-                  rebuild_stokes_matrix = rebuild_stokes_preconditioner = assemble_newton_stokes_matrix = true;
-
-                  /*pcout << "   Reset assemblers." << std::endl;
+              /*pcout << "   Reset assemblers." << std::endl;
                   compute_current_constraints ();
                   assemblers.reset (new internal::Assembly::AssemblerLists<dim>());
                   set_assemblers();*/
-                  //if(parameters.newton_residual == 0 || use_picard == true)
-                	//  parameters.newton_residual = parameters.switch_initial_newton_residual;
+              //if(parameters.newton_residual == 0 || use_picard == true)
+              //  parameters.newton_residual = parameters.switch_initial_newton_residual;
 
-                  assemble_stokes_system();
+              assemble_stokes_system();
 
-                  /**
-                   * Eisenstat Walker method for determining the tolerance
-                   */
-                  if(nonlinear_iteration_number > 1)
-                  {
-                	  newton_residual_old = newton_residual;
-                	  newton_residual_velo = system_rhs.block(introspection.block_indices.velocities).l2_norm();
-                	  newton_residual_pres = system_rhs.block(introspection.block_indices.pressure).l2_norm();
-                	  newton_residual = std::sqrt(newton_residual_velo * newton_residual_velo + newton_residual_pres * newton_residual_pres);
-
-
-                	  if(!use_picard)
-                	  {
-                	  //double eta_old = parameters.linear_stokes_solver_tolerance;
-                	  //double eta_new = 0.9 * ((newton_residual * newton_residual) / (newton_residual_old * newton_residual_old));
-                	  //if(0.9 * eta_old * eta_old > 0.1)
-                	  //eta_new = std::max(eta_new, 0.9 * eta_old * eta_old);
-                	  //parameters.linear_stokes_solver_tolerance = std::min(eta_new, 0.5);
-                	  //parameters.linear_stokes_solver_tolerance = std::max(parameters.linear_stokes_solver_tolerance,0.5 * parameters.nonlinear_tolerance / newton_residual);
-                	  //if(nonlinear_iteration_number == 0)
-                	  //newton_residual_old = newton_residual;
-
-                	  parameters.linear_stokes_solver_tolerance =  std::min(1e-3, 0.9 * std::fabs(newton_residual*newton_residual)/(newton_residual_old*newton_residual_old)); //std::pow(0.5,nonlinear_iteration_number+1);std::min(0.5,std::fabs(newton_residual-stokes_residual)/newton_residual_old); //
-
-                	  std::cout << std::endl << "The linear solver tolerance is set to " << parameters.linear_stokes_solver_tolerance << ":" << std::fabs(newton_residual-stokes_residual)/newton_residual_old << "," << stokes_residual << "," << newton_residual << ", " << newton_residual_old << std::endl;
-                	  }
-                  }
-                  build_stokes_preconditioner();
-                  LinearAlgebra::BlockVector bs = solution;
-                  //std::cout << "solution norm b = " << bs.block(introspection.block_indices.velocities).l2_norm() << std::endl;
-
-                  stokes_residual = solve_stokes();
-
-                  //std::cout << solution.block(0).l2_norm() << ":" << solution.block(1).l2_norm() << std::endl;
-
-                  newton_residual_velo = system_rhs.block(introspection.block_indices.velocities).l2_norm();
-                  newton_residual_pres = system_rhs.block(introspection.block_indices.pressure).l2_norm();
-                  newton_residual = std::sqrt(newton_residual_velo * newton_residual_velo + newton_residual_pres * newton_residual_pres);
-
-                  LinearAlgebra::BlockVector as = solution;
-//std::cout << "solution norm a = " << as.block(introspection.block_indices.velocities).l2_norm() << std::endl;
-
-                  //TODO: need to look at this residual thing. We may need separated tolerances (maybe even absolute and relative tolerances).
-                  //if (newton_residual < parameters.nonlinear_tolerance * initial_stokes_residual)
-                  // break;
-
-                  // We may need to do a line search if the solution doesn't decrease the norm of the rhs. TODO: more documentation.
-                  LinearAlgebra::BlockVector backup_linearization_point = current_linearization_point;
-
-                  double test_newton_residual = 0;
-                  double test_newton_residual_velo = 0;
-                  double test_newton_residual_pres = 0;
-                  double lambda = 1;
-                  double alfa = 1e-4;
-                  unsigned int line_search_iteration = 0;
-
-                  do
-                    {
-                      current_linearization_point = backup_linearization_point;
-
-                      LinearAlgebra::BlockVector search_direction = solution;
-
-                      search_direction *= lambda;
+              /**
+               * Eisenstat Walker method for determining the tolerance
+               */
+              if(nonlinear_iteration_number > 1)
+              {
+            	  newton_residual_old = newton_residual;
+            	  newton_residual_velo = system_rhs.block(introspection.block_indices.velocities).l2_norm();
+            	  newton_residual_pres = system_rhs.block(introspection.block_indices.pressure).l2_norm();
+            	  newton_residual = std::sqrt(newton_residual_velo * newton_residual_velo + newton_residual_pres * newton_residual_pres);
 
 
-                      current_linearization_point.block(introspection.block_indices.pressure) += search_direction.block(introspection.block_indices.pressure);
-                      current_linearization_point.block(introspection.block_indices.velocities) += search_direction.block(introspection.block_indices.velocities);
+            	  if(!use_picard)
+            	  {
+            		  //double eta_old = parameters.linear_stokes_solver_tolerance;
+            		  //double eta_new = 0.9 * ((newton_residual * newton_residual) / (newton_residual_old * newton_residual_old));
+            		  //if(0.9 * eta_old * eta_old > 0.1)
+            		  //eta_new = std::max(eta_new, 0.9 * eta_old * eta_old);
+            		  //parameters.linear_stokes_solver_tolerance = std::min(eta_new, 0.5);
+            		  //parameters.linear_stokes_solver_tolerance = std::max(parameters.linear_stokes_solver_tolerance,0.5 * parameters.nonlinear_tolerance / newton_residual);
+            		  //if(nonlinear_iteration_number == 0)
+            		  //newton_residual_old = newton_residual;
 
-                      //normalize_pressure(current_linearization_point);
+            		  parameters.linear_stokes_solver_tolerance =  std::min(9e-1, 0.9 * std::fabs(newton_residual*newton_residual)/(newton_residual_old*newton_residual_old)); //std::pow(0.5,nonlinear_iteration_number+1);std::min(0.5,std::fabs(newton_residual-stokes_residual)/newton_residual_old); //
 
-                      assemble_newton_stokes_matrix = rebuild_stokes_preconditioner = false;
-                      rebuild_stokes_matrix = true;
-                      if (line_search_iteration == 0)
-                        {
-                          assemblers.reset (new internal::Assembly::AssemblerLists<dim>());
-                          set_assemblers();
-                        }
-                      assemble_stokes_system();
+            		  pcout << std::endl << "   The linear solver tolerance is set to " << parameters.linear_stokes_solver_tolerance << ":" << std::fabs(newton_residual-stokes_residual)/newton_residual_old << "," << stokes_residual << "," << newton_residual << ", " << newton_residual_old << std::endl;
+            	  }
+              }
+              build_stokes_preconditioner();
+              //LinearAlgebra::BlockVector bs = solution;
+              //std::cout << "solution norm b = " << bs.block(introspection.block_indices.velocities).l2_norm() << std::endl;
 
-                      test_newton_residual_velo = system_rhs.block(introspection.block_indices.velocities).l2_norm();
-                      test_newton_residual_pres = system_rhs.block(introspection.block_indices.pressure).l2_norm();
-                      test_newton_residual = std::sqrt(test_newton_residual_velo * test_newton_residual_velo + test_newton_residual_pres * test_newton_residual_pres);
+              stokes_residual = solve_stokes();
 
-                      if (test_newton_residual < (1.0 - alfa * lambda) * newton_residual || line_search_iteration >= parameters.max_newton_line_search_iterations || use_picard)
-                        {
-                    	  /*if(line_search_iteration >= parameters.max_newton_line_search_iterations)
+              //std::cout << solution.block(0).l2_norm() << ":" << solution.block(1).l2_norm() << std::endl;
+
+              newton_residual_velo = system_rhs.block(introspection.block_indices.velocities).l2_norm();
+              newton_residual_pres = system_rhs.block(introspection.block_indices.pressure).l2_norm();
+              newton_residual = std::sqrt(newton_residual_velo * newton_residual_velo + newton_residual_pres * newton_residual_pres);
+
+              //LinearAlgebra::BlockVector as = solution;
+              //std::cout << "solution norm a = " << as.block(introspection.block_indices.velocities).l2_norm() << std::endl;
+
+              //TODO: need to look at this residual thing. We may need separated tolerances (maybe even absolute and relative tolerances).
+              //if (newton_residual < parameters.nonlinear_tolerance * initial_stokes_residual)
+              // break;
+
+              // We may need to do a line search if the solution doesn't decrease the norm of the rhs. TODO: more documentation.
+              LinearAlgebra::BlockVector backup_linearization_point = current_linearization_point;
+
+              double test_newton_residual = 0;
+              double test_newton_residual_velo = 0;
+              double test_newton_residual_pres = 0;
+              double lambda = 1;
+              double alfa = 1e-4;
+              unsigned int line_search_iteration = 0;
+
+              do
+              {
+            	  current_linearization_point = backup_linearization_point;
+
+            	  LinearAlgebra::BlockVector search_direction = solution;
+
+            	  search_direction *= lambda;
+
+
+            	  current_linearization_point.block(introspection.block_indices.pressure) += search_direction.block(introspection.block_indices.pressure);
+            	  current_linearization_point.block(introspection.block_indices.velocities) += search_direction.block(introspection.block_indices.velocities);
+
+            	  //normalize_pressure(current_linearization_point);
+
+            	  assemble_newton_stokes_matrix = rebuild_stokes_preconditioner = false;
+            	  rebuild_stokes_matrix = true;
+            	 /* if (line_search_iteration == 0)
+            	  {
+            		  assemblers.reset (new internal::Assembly::AssemblerLists<dim>());
+            		  set_assemblers();
+            	  }*/
+            	  assemble_stokes_system();
+
+            	  test_newton_residual_velo = system_rhs.block(introspection.block_indices.velocities).l2_norm();
+            	  test_newton_residual_pres = system_rhs.block(introspection.block_indices.pressure).l2_norm();
+            	  test_newton_residual = std::sqrt(test_newton_residual_velo * test_newton_residual_velo + test_newton_residual_pres * test_newton_residual_pres);
+
+            	  //std::cout << test_newton_residual << " < " << (1.0 - alfa * lambda) * newton_residual << ", " << line_search_iteration << " >= " << parameters.max_newton_line_search_iterations << ", " << use_picard << std::endl;
+            	  if (test_newton_residual < (1.0 - alfa * lambda) * newton_residual || line_search_iteration >= parameters.max_newton_line_search_iterations || use_picard)
+            	  {
+            		  /*if(line_search_iteration >= parameters.max_newton_line_search_iterations)
                     		  pcout << "Max it" << line_search_iteration << ":" << parameters.max_newton_line_search_iterations << std::endl;
                     	  if(test_newton_residual < (1.0 - alfa * lambda) * newton_residual)
                     		  pcout << "other test" << std::endl;*/
-                          pcout << newton_residual/initial_newton_residual << "   Norm of rhs = " << newton_residual << ":" << test_newton_residual  << ", relative residual: " << newton_residual/initial_newton_residual << ", v = " << test_newton_residual_velo << ":" << test_newton_residual_velo/initial_newton_residual_velo << ", p = " << test_newton_residual_pres << ":" << test_newton_residual_pres/initial_newton_residual_pres << ", theta = " << std::max(0.,(1-(parameters.newton_residual/parameters.switch_initial_newton_residual))) << " = (1-(" << parameters.newton_residual << "/" << parameters.switch_initial_newton_residual << "), stokes residual = " << stokes_residual  <<  std::endl;
-
-                          break;
-                        }
-                      else
-                        {
-
-                          pcout << "   Iteration " << line_search_iteration << ", with norm of the rhs " << test_newton_residual << " and going to "
-                                << (1.0 - alfa * lambda) * newton_residual << ", relative residual: " << newton_residual/initial_newton_residual << ", theta = " << std::max(0.,(1-(parameters.newton_residual/parameters.switch_initial_newton_residual))) << std::endl;
-
-                          lambda = lambda * (2.0/3.0);// TODO: make a parameter out of this.
-                        }
-
-                      line_search_iteration++;
-                    }
-                  while (true);//line_search_iteration < parameters.max_newton_line_search_iterations);
-
-                  //newton_residual = test_newton_residual;
-
-                  if(use_picard == true)
-                  {
-                	  parameters.switch_initial_newton_residual = newton_residual;
-                	  parameters.newton_residual = newton_residual;
-                  }
-                  else
-                  {
-                	  bool use_said_method = false;
-                	  if(use_said_method) //said method
-                		  parameters.newton_residual = test_newton_residual;
-                	  else
-                		  parameters.newton_residual = 0;
-                  }
 
 
-                  // We set the linear tolerance for the next iteration using
-                  // choice 1 of the Eisenstat-Walker method. We do this because
-                  // choice 1 requires no parameters. TODO: Make it work and ellaborate.
-                  /*double eta_old = parameters.linear_stokes_solver_tolerance;
+
+            		  pcout << newton_residual/initial_newton_residual << "   Norm of rhs = " << newton_residual << ":" << test_newton_residual  << ", relative residual: " << newton_residual/initial_newton_residual << ", theta = " << parameters.newton_theta << std::endl; //", v = " << test_newton_residual_velo << ":" << test_newton_residual_velo/initial_newton_residual_velo << ", p = " << test_newton_residual_pres << ":" << test_newton_residual_pres/initial_newton_residual_pres << ", theta = " << std::max(0.,(1-(parameters.newton_residual/parameters.switch_initial_newton_residual))) << " = (1-(" << parameters.newton_residual << "/" << parameters.switch_initial_newton_residual << "), stokes residual = " << stokes_residual  <<  std::endl;
+
+            		  break;
+            	  }
+            	  else
+            	  {
+
+            		  pcout << "   Iteration " << line_search_iteration << ", with norm of the rhs " << test_newton_residual << " and going to "
+            				  << (1.0 - alfa * lambda) * newton_residual << ", relative residual: " << newton_residual/initial_newton_residual << ", theta = " << parameters.newton_theta << std::endl;
+
+            		  lambda = lambda * (2.0/3.0);// TODO: make a parameter out of this.
+            	  }
+
+            	  line_search_iteration++;
+              }
+              while (true);//line_search_iteration < parameters.max_newton_line_search_iterations);
+
+              //newton_residual = test_newton_residual;
+
+              if(use_picard == true)
+              {
+            	  parameters.switch_initial_newton_residual = newton_residual;
+            	  parameters.newton_residual = newton_residual;
+              }
+              else
+              {
+            	  bool use_said_method = false;
+            	  if(use_said_method) //said method
+            		  parameters.newton_residual = test_newton_residual;
+            	  else
+            		  parameters.newton_residual = 0;
+              }
+
+
+              // We set the linear tolerance for the next iteration using
+              // choice 1 of the Eisenstat-Walker method. We do this because
+              // choice 1 requires no parameters. TODO: Make it work and ellaborate.
+              /*double eta_old = parameters.linear_stokes_solver_tolerance;
                   double eta_new = 0.9 * ((newton_residual * newton_residual) / (newton_residual_old * newton_residual_old));
                   //if(0.9 * eta_old * eta_old > 0.1)
                     //eta_new = std::max(eta_new, 0.9 * eta_old * eta_old);
@@ -2352,31 +2260,41 @@ namespace aspect
 
                   std::cout << "The linear solver tolerance is set to " << parameters.linear_stokes_solver_tolerance << "," << newton_residual << ", " << stokes_residual  << ", " << newton_residual_old << std::endl;*/
 
-                  newton_residual_old = newton_residual;
+              newton_residual_old = newton_residual;
 
 
 
-                  pcout << std::endl;
-                  normalize_pressure(current_linearization_point);
-                  ++nonlinear_iteration_number;
+              pcout << std::endl;
+              normalize_pressure(current_linearization_point);
+              ++nonlinear_iteration_number;
 
-                  if (newton_residual/initial_newton_residual < parameters.nonlinear_tolerance)
-                    break;
-                }
+              if (newton_residual/initial_newton_residual < parameters.nonlinear_tolerance)
+            	  break;
             }
           while (! ((nonlinear_iteration_number >= parameters.max_nonlinear_iterations) // regular timestep
-                    ||
-                    ((pre_refinement_step < parameters.initial_adaptive_refinement) // pre-refinement
-                     &&
-                     (nonlinear_iteration_number >= parameters.max_nonlinear_iterations_in_prerefinement))));
+        		  ||
+				  ((pre_refinement_step < parameters.initial_adaptive_refinement) // pre-refinement
+						  &&
+						  (nonlinear_iteration_number >= parameters.max_nonlinear_iterations_in_prerefinement))));
 
           pcout << "Final residual: Norm of rhs = " << newton_residual << ", relative residual: " << newton_residual/initial_newton_residual <<  std::endl;
 
           // When we are ready with iterating, we need to set the final solution to the current linearlization point,
           // because the solution vector is used in the postprocess.
-          solution.block(introspection.block_indices.pressure) = current_linearization_point.block(introspection.block_indices.pressure);
-          solution.block(introspection.block_indices.velocities) = current_linearization_point.block(introspection.block_indices.velocities);
+          //solution.block(introspection.block_indices.pressure) = current_linearization_point.block(introspection.block_indices.pressure);
+          //solution.block(introspection.block_indices.velocities) = current_linearization_point.block(introspection.block_indices.velocities);
+          solution = current_linearization_point;
+          //assemble_newton_stokes_system = false;
+          //use_picard == true;
 
+          //parameters.nonlinear_solver = NonlinearSolver::iterated_Stokes;
+          /*assemble_newton_stokes_system = false;
+          assemble_newton_stokes_matrix = false;
+
+          compute_current_constraints ();
+
+          assemblers.reset (new internal::Assembly::AssemblerLists<dim>());
+          set_assemblers();*/
           break;
         }
 
