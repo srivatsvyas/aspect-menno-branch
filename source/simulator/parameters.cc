@@ -279,6 +279,11 @@ namespace aspect
                        "value should be sufficient. In fact, a tolerance of 1e-4 "
                        "might be accurate enough.");
 
+    prm.declare_entry ("Minimum linear solver tolerance", "1e-2",
+                       Patterns::Double(0,1),
+                       "This defines the minimum linear solver tolerance to be used "
+                       "by the oversolving protection of the Newton solver.");
+
     prm.declare_entry ("Linear solver A block tolerance", "1e-2",
                        Patterns::Double(0,1),
                        "A relative tolerance up to which the approximate inverse of the A block "
@@ -835,17 +840,18 @@ namespace aspect
                              "did not detect its presence when you called 'cmake'."));
 #endif
 
-    surface_pressure                = prm.get_double ("Surface pressure");
-    adiabatic_surface_temperature   = prm.get_double ("Adiabatic surface temperature");
-    pressure_normalization          = prm.get("Pressure normalization");
+    surface_pressure                       = prm.get_double ("Surface pressure");
+    adiabatic_surface_temperature          = prm.get_double ("Adiabatic surface temperature");
+    pressure_normalization                 = prm.get("Pressure normalization");
 
-    use_direct_stokes_solver        = prm.get_bool("Use direct solver for Stokes system");
-    linear_stokes_solver_tolerance  = prm.get_double ("Linear solver tolerance");
-    linear_solver_A_block_tolerance = prm.get_double ("Linear solver A block tolerance");
-    linear_solver_S_block_tolerance = prm.get_double ("Linear solver S block tolerance");
-    n_cheap_stokes_solver_steps     = prm.get_integer ("Number of cheap Stokes solver steps");
-    temperature_solver_tolerance    = prm.get_double ("Temperature solver tolerance");
-    composition_solver_tolerance    = prm.get_double ("Composition solver tolerance");
+    use_direct_stokes_solver               = prm.get_bool("Use direct solver for Stokes system");
+    linear_stokes_solver_tolerance         = prm.get_double ("Linear solver tolerance");
+    minimum_linear_stokes_solver_tolerance = prm.get_double("Minimum linear solver tolerance");
+    linear_solver_A_block_tolerance        = prm.get_double ("Linear solver A block tolerance");
+    linear_solver_S_block_tolerance        = prm.get_double ("Linear solver S block tolerance");
+    n_cheap_stokes_solver_steps            = prm.get_integer ("Number of cheap Stokes solver steps");
+    temperature_solver_tolerance           = prm.get_double ("Temperature solver tolerance");
+    composition_solver_tolerance           = prm.get_double ("Composition solver tolerance");
 
     prm.enter_subsection ("Mesh refinement");
     {

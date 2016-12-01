@@ -2139,8 +2139,15 @@ namespace aspect
             		  //if(nonlinear_iteration_number == 0)
             		  //newton_residual_old = newton_residual;
 
-            		  parameters.linear_stokes_solver_tolerance =  std::min(9e-1, 0.9 * std::fabs(newton_residual*newton_residual)/(newton_residual_old*newton_residual_old)); //std::pow(0.5,nonlinear_iteration_number+1);std::min(0.5,std::fabs(newton_residual-stokes_residual)/newton_residual_old); //
-
+            		  if(0.9*parameters.linear_stokes_solver_tolerance * parameters.linear_stokes_solver_tolerance <= 0.1)
+            		  {
+            			  parameters.linear_stokes_solver_tolerance =  std::min(parameters.minimum_linear_stokes_solver_tolerance, 0.9 * std::fabs(newton_residual*newton_residual)/(newton_residual_old*newton_residual_old));
+            			  //std::pow(0.5,nonlinear_iteration_number+1);std::min(0.5,std::fabs(newton_residual-stokes_residual)/newton_residual_old); //
+            		  }
+            		  else
+            		  {
+            			  parameters.linear_stokes_solver_tolerance =  std::min(parameters.minimum_linear_stokes_solver_tolerance, std::max(0.9 * std::fabs(newton_residual*newton_residual)/(newton_residual_old*newton_residual_old),0.9*parameters.linear_stokes_solver_tolerance*parameters.linear_stokes_solver_tolerance));
+            		  }
             		  pcout << std::endl << "   The linear solver tolerance is set to " << parameters.linear_stokes_solver_tolerance << ":" << std::fabs(newton_residual-stokes_residual)/newton_residual_old << "," << stokes_residual << "," << newton_residual << ", " << newton_residual_old << std::endl;
             	  }
               }
