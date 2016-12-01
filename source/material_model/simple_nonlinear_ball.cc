@@ -532,6 +532,7 @@ namespace aspect
               if (derivatives != NULL)
                 {
                   derivatives->dviscosities_dstrain_rate[i] = p_norm_average_derivatives(out.viscosities[i],in.composition[i], composition_viscosities, composition_viscosities_derivatives, viscosity_averaging_p);
+                  derivatives->dviscosities_dpressure[i] = 0;
 
 #ifdef DEBUG
  /*                 for (int x = 0; x < dim; x++)

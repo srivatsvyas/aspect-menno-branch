@@ -117,7 +117,7 @@ namespace aspect
 	SimpleNonlinear<dim>::
 	compute_viscosity(const double edot_ii,const double prefactor,const double alpha, const double eref, const double min_visc, const double max_visc) const
     {
-    	return std::max(std::min(prefactor * pow(edot_ii * edot_ii + eref * eref, alpha / 2),max_visc),min_visc);
+    	return std::max(std::min(prefactor * pow(2*sqrt(0.5 * edot_ii * edot_ii + eref * eref), alpha ),max_visc),min_visc);
 
     }
 
@@ -177,6 +177,7 @@ namespace aspect
               // distribute the strain-rate and stress over the processes.
               std::vector<double> composition_viscosities(volume_fractions.size());
               std::vector<SymmetricTensor<2,dim> > composition_viscosities_derivatives(volume_fractions.size());
+              //std::vector<double> composition_dviscosities_dpressure(volume_fractions.size());
 
               for (unsigned int c=0; c < volume_fractions.size(); ++c)
                 {
@@ -203,7 +204,7 @@ namespace aspect
                   //       do with effective medium theory. Have to look into this a bit more.
                   const double stress_exponent_inv = (1./stress_exponent[c]);//stress_exponent[c])-1;
                   const double alpha = stress_exponent_inv - 1;
-            	  const double eref = 1e-20;//std::max(1e-15 * edot_ii,1e-15);
+            	  const double eref = 0;//1e-20;//std::max(1e-15 * edot_ii,1e-15);
 
                   composition_viscosities[c] = compute_viscosity(edot_ii,prefactor[c],alpha,eref,min_visc[c],max_visc[c]);
 
@@ -314,6 +315,8 @@ namespace aspect
                 		  //composition_viscosities_derivatives[c] = composition_viscosities_derivatives[c] * alpha;
 
                 	  }
+                	  // this material model is not pressure dependent
+                	  //composition_dviscosities_dpressure[c] = 0;
                     }
                 }
               out.viscosities[i] = composition_viscosities[0];//p_norm_average(in.composition[i], composition_viscosities, viscosity_averaging_p);
@@ -322,7 +325,8 @@ namespace aspect
               if (derivatives != NULL)
                 {
                   derivatives->dviscosities_dstrain_rate[i] = composition_viscosities_derivatives[0];//p_norm_average_derivatives(out.viscosities[i],in.composition[i], composition_viscosities, composition_viscosities_derivatives, viscosity_averaging_p);
-
+                  // this material model is not pressure dependent
+                  derivatives->dviscosities_dpressure[i] = 0;
 #ifdef DEBUG
  /*                 for (int x = 0; x < dim; x++)
                     for (int y = 0; y < dim; y++)

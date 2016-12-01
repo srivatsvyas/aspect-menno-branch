@@ -77,13 +77,17 @@ namespace aspect
      * @ingroup MaterialModels
      */
     template <int dim>
-    class DruckerPrager : public MaterialModel::InterfaceCompatibility<dim>, public ::aspect::SimulatorAccess<dim>
+    class DruckerPrager : public MaterialModel::Interface<dim>, public ::aspect::SimulatorAccess<dim>
     {
       public:
         /**
          * @name Physical parameters used in the basic equations
          * @{
          */
+
+    	virtual void evaluate(const MaterialModel::MaterialModelInputs<dim> &in,
+    	                              MaterialModel::MaterialModelOutputs<dim> &out) const;
+
         virtual double viscosity (const double                  temperature,
                                   const double                  pressure,
                                   const std::vector<double>    &compositional_fields,

@@ -413,6 +413,7 @@ namespace aspect
                   //std::cout << "Flag 10" << std::endl;
                   if (derivatives != NULL)
                     {
+                	  derivatives->dviscosities_dpressure[i] = 0;
                 	  if(use_analytical_derivative)
                 	  {
                 		  //analytic

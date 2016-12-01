@@ -28,6 +28,137 @@ namespace aspect
   namespace MaterialModel
   {
 
+  template <int dim>
+  void
+  DruckerPrager<dim>::
+  evaluate(const MaterialModel::MaterialModelInputs<dim> &in,
+          MaterialModel::MaterialModelOutputs<dim> &out) const
+	{
+		//set up additional output for the derivatives
+	      MaterialModelDerivatives<dim> *derivatives;
+	      derivatives = out.template get_additional_output<MaterialModelDerivatives<dim> >();
+
+  	for (unsigned int i=0; i < in.temperature.size(); ++i)
+  	        {
+
+  	          // as documented, if the strain rate array is empty, then do not compute the
+  	          // viscosities
+  	          if (in.strain_rate.size() > 0)
+  	            out.viscosities[i]                  = viscosity                     (in.temperature[i], in.pressure[i], in.composition[i], in.strain_rate[i], in.position[i]);
+
+  	          out.densities[i]                      = density                       (in.temperature[i], in.pressure[i], in.composition[i], in.position[i]);
+  	          out.thermal_expansion_coefficients[i] = thermal_expansion_coefficient (in.temperature[i], in.pressure[i], in.composition[i], in.position[i]);
+  	          out.specific_heat[i]                  = specific_heat                 (in.temperature[i], in.pressure[i], in.composition[i], in.position[i]);
+  	          out.thermal_conductivities[i]         = thermal_conductivity          (in.temperature[i], in.pressure[i], in.composition[i], in.position[i]);
+  	          out.compressibilities[i]              = compressibility               (in.temperature[i], in.pressure[i], in.composition[i], in.position[i]);
+  	          //out.entropy_derivative_pressure[i]    = entropy_derivative            (in.temperature[i], in.pressure[i], in.composition[i], in.position[i], NonlinearDependence::pressure);
+  	          //out.entropy_derivative_temperature[i] = entropy_derivative            (in.temperature[i], in.pressure[i], in.composition[i], in.position[i], NonlinearDependence::temperature);
+  	          //for (unsigned int c=0; c<in.composition[i].size(); ++c)
+  	           // out.reaction_terms[i][c]            = reaction_term                 (in.temperature[i], in.pressure[i], in.composition[i], in.position[i], c);
+
+  	        if (derivatives != NULL)
+  	        {
+      		  // finite difference
+      		  const double finite_difference_accuracy = 1e-7;
+      		  SymmetricTensor<2,dim> zerozero = SymmetricTensor<2,dim>();
+      		  SymmetricTensor<2,dim> onezero = SymmetricTensor<2,dim>();
+      		  SymmetricTensor<2,dim> oneone = SymmetricTensor<2,dim>();
+
+      		  zerozero[0][0] = 1;
+      		  onezero[1][0]  = 0.5; // because symmetry doubles this entry
+      		  oneone[1][1]   = 1;
+
+      		  SymmetricTensor<2,dim> strain_rate_zero_zero = in.strain_rate[i] + std::fabs(in.strain_rate[i][0][0]) * finite_difference_accuracy * zerozero;
+      		  SymmetricTensor<2,dim> strain_rate_one_zero = in.strain_rate[i] + std::fabs(in.strain_rate[i][1][0]) * finite_difference_accuracy * onezero;
+      		  SymmetricTensor<2,dim> strain_rate_one_one = in.strain_rate[i] + std::fabs(in.strain_rate[i][1][1]) * finite_difference_accuracy * oneone;
+
+      		  double edot_ii_fd;
+
+      		  double eta_zero_zero = viscosity(in.temperature[i], in.pressure[i], in.composition[i], strain_rate_zero_zero, in.position[i]);
+      		  double deriv_zero_zero = eta_zero_zero - out.viscosities[i];
+
+      		  if(deriv_zero_zero != 0)
+      		  {
+      			  if(strain_rate_zero_zero[0][0] != 0)
+      			  {
+      				  deriv_zero_zero /= std::fabs(strain_rate_zero_zero[0][0]) * finite_difference_accuracy;
+      			  }
+      			  else
+      			  {
+      				  deriv_zero_zero = 0;
+      			  }
+
+      		  }
+
+      		  double eta_one_zero = viscosity(in.temperature[i], in.pressure[i], in.composition[i], strain_rate_one_zero, in.position[i]);
+      		  double deriv_one_zero = eta_one_zero - out.viscosities[i];
+
+      		  if(deriv_one_zero != 0)
+      		  {
+      			  if(strain_rate_one_zero[1][0] != 0)
+      			  {
+      				  deriv_one_zero /= std::fabs(strain_rate_one_zero[1][0]) * finite_difference_accuracy;
+      			  }
+      			  else
+      			  {
+      				  deriv_one_zero = 0;
+      			  }
+      		  }
+
+      		  double eta_one_one = viscosity(in.temperature[i], in.pressure[i], in.composition[i], strain_rate_one_one, in.position[i]);
+      		  double deriv_one_one = eta_one_one - out.viscosities[i];
+
+      		  if(eta_one_one != 0)
+      		  {
+      			  if(strain_rate_one_one[1][1] != 0)
+      			  {
+      				  deriv_one_one /= std::fabs(strain_rate_one_one[1][1]) * finite_difference_accuracy;
+      			  }
+      			  else
+      			  {
+      				  deriv_one_one = 0;
+      			  }
+      		  }
+//std::cout << deriv_zero_zero << ", " << deriv_one_zero << ", " << deriv_one_one << std::endl;
+      		double sr = ( (this->get_timestep_number() == 0 && in.strain_rate[i].norm() <= std::numeric_limits<double>::min())
+                    ?
+                    reference_strain_rate * reference_strain_rate
+                    :
+					0.5 * in.strain_rate[i]*in.strain_rate[i]);
+      		if(out.viscosities[i] <= minimum_viscosity || out.viscosities[i] >= maximum_viscosity)
+      			derivatives->dviscosities_dstrain_rate[i] = 0;
+      		else
+      		derivatives->dviscosities_dstrain_rate[i] = -1/(std::sqrt(sr)*sr)*in.strain_rate[i]*(cohesion*std::cos(phi)+in.pressure[i]*std::sin(phi));
+      		//derivatives->dviscosities_dstrain_rate[i][0][0] = deriv_zero_zero;
+      		//derivatives->dviscosities_dstrain_rate[i][1][0] = deriv_one_zero;
+      		//derivatives->dviscosities_dstrain_rate[i][1][1] = deriv_one_one;
+
+      		/**
+      		 * Now compute the derivative of the viscoisty to the pressure
+      		 */
+      		double pressure_difference = in.pressure[i] + (std::fabs(in.pressure[i]) * 1e-7);
+
+      		double pressure_difference_eta = viscosity(in.temperature[i], pressure_difference, in.composition[i], in.strain_rate[i], in.position[i]);
+      		double deriv_pressure = pressure_difference_eta - out.viscosities[i];
+      		if(in.pressure[i] > 0)
+      		std::cout << "pd = " << pressure_difference << " = " << in.pressure[i] << " + " << std::fabs(in.pressure[i]) << " * " << finite_difference_accuracy << ", pda = " << pressure_difference_eta << ", dp = " << deriv_pressure << std::endl;
+      		if(pressure_difference_eta != 0)
+      		{
+      			if(in.pressure[i] != 0)
+      			{
+      				deriv_pressure /= std::fabs(in.pressure[i]) * 1e-7;
+      			}
+      			else
+      			{
+      				deriv_pressure = 0;
+      			}
+      		}
+      		derivatives->dviscosities_dpressure[i] = 0;//deriv_pressure;
+
+  	        }
+  	        }
+	}
+
     template <int dim>
     double
     DruckerPrager<dim>::
@@ -50,7 +181,7 @@ namespace aspect
                                             ?
                                             reference_strain_rate * reference_strain_rate
                                             :
-                                            std::fabs(second_invariant(deviator(strain_rate))));
+                                            0.5 * strain_rate*strain_rate);
 
       // In later timesteps, we still need to care about cases of very small
       // strain rates. We expect the viscosity to approach the maximum_viscosity
@@ -72,7 +203,7 @@ namespace aspect
 
       // Cut off the viscosity between a minimum and maximum value to avoid
       // a numerically unfavourable large viscosity range.
-      const double effective_viscosity = 1.0 / ( ( 1.0 / ( viscosity + minimum_viscosity ) ) + ( 1.0 / maximum_viscosity ) );
+      const double effective_viscosity = std::min(std::max(viscosity,minimum_viscosity),maximum_viscosity);//1.0 / ( ( 1.0 / ( viscosity + minimum_viscosity ) ) + ( 1.0 / maximum_viscosity ) );
 
       return effective_viscosity;
 
