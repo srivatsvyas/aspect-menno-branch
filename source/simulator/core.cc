@@ -922,7 +922,7 @@ namespace aspect
                 mask[i]=introspection.component_masks.velocities[i];
             }
 
-          if (!assemble_newton_stokes_system || (assemble_newton_stokes_system && nonlinear_iteration_number == 0))
+          if (!assemble_newton_stokes_system || (assemble_newton_stokes_system && nonlinear_iteration == 0))
             {
               VectorTools::interpolate_boundary_values (dof_handler,
                                                         p->first,
@@ -2333,7 +2333,7 @@ namespace aspect
           double initial_stokes_residual      = 0;
           std::vector<double> initial_composition_residual (parameters.n_compositional_fields,0);
 
-          parameters.nonlinear_iteration_number = 0;
+          //parameters.nonlinear_iteration_number = 0;
 
           double max = std::numeric_limits<double>::max();
 
@@ -2368,13 +2368,13 @@ namespace aspect
               solution.block(introspection.block_indices.pressure) = 0;
               solution.block(introspection.block_indices.velocities) = 0;
 
-              pcout << "Newton iteration number: " << parameters.nonlinear_iteration_number << std::endl;
+              pcout << "Newton iteration number: " << nonlinear_iteration << std::endl;
 
               assemble_advection_system(AdvectionField::temperature());
               build_advection_preconditioner(AdvectionField::temperature(),
                                              T_preconditioner);
 
-              if (parameters.nonlinear_iteration_number == 0)
+              if (nonlinear_iteration == 0)
                 initial_temperature_residual = system_rhs.block(introspection.block_indices.temperature).l2_norm();
 
               const double temperature_residual = solve_advection(AdvectionField::temperature());
@@ -2390,7 +2390,7 @@ namespace aspect
                   build_advection_preconditioner(AdvectionField::composition(c),
                                                  C_preconditioner);
 
-                  if (parameters.nonlinear_iteration_number == 0)
+                  if (nonlinear_iteration == 0)
                     initial_composition_residual[c] = system_rhs.block(introspection.block_indices.compositional_fields[c]).l2_norm();
 
                   composition_residual[c]
@@ -2405,7 +2405,7 @@ namespace aspect
               LinearAlgebra::BlockVector global_backup_linearization_point = current_linearization_point;
 
               if (use_picard == true && (max <= parameters.nonlinear_switch_tolerance ||
-                                         parameters.nonlinear_iteration_number >= parameters.max_pre_newton_nonlinear_iterations))
+                                         nonlinear_iteration >= parameters.max_pre_newton_nonlinear_iterations))
                 {
                   use_picard = false;
                   pcout << "Switching Newton derivatives on." << std::endl;
@@ -2417,7 +2417,7 @@ namespace aspect
 
               parameters.newton_theta = std::max(0.,(1-(parameters.newton_residual/parameters.switch_initial_newton_residual)));
 
-              if (parameters.nonlinear_iteration_number == 0)
+              if (nonlinear_iteration == 0)
                 {
                   current_linearization_point.block(introspection.block_indices.velocities) = 0;
 
@@ -2462,7 +2462,7 @@ namespace aspect
               /**
                * Eisenstat Walker method for determining the tolerance
                */
-              if (parameters.nonlinear_iteration_number > 1)
+              if (nonlinear_iteration > 1)
                 {
                   newton_residual_old = newton_residual;
                   newton_residual_velo = system_rhs.block(introspection.block_indices.velocities).l2_norm();
@@ -2603,7 +2603,7 @@ namespace aspect
 
               pcout << std::endl;
               normalize_pressure(current_linearization_point);
-              ++parameters.nonlinear_iteration_number;
+              ++nonlinear_iteration;
 
               if (newton_residual/initial_newton_residual < parameters.nonlinear_tolerance)
                 break;

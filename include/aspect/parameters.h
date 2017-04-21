@@ -336,7 +336,6 @@ namespace aspect
     double              switch_initial_newton_residual;
     double              newton_theta;
     double              minimum_linear_stokes_solver_tolerance;
-    int                 nonlinear_iteration_number;
 
     /**
      * @}
