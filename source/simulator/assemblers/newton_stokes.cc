@@ -39,6 +39,7 @@ namespace aspect
       const unsigned int stokes_dofs_per_cell = data.local_dof_indices.size();
       const unsigned int n_q_points           = scratch.finite_element_values.n_quadrature_points;
       const double derivative_scaling_factor = this->get_newton_handler().get_newton_derivative_scaling_factor();
+      const bool use_spd_factor = this->get_newton_handler().get_use_spd_factor();
 
       // First loop over all dofs and find those that are in the Stokes system
       // save the component (pressure and dim velocities) each belongs to.
@@ -104,8 +105,9 @@ namespace aspect
               const SymmetricTensor<2,dim> viscosity_derivative_wrt_strain_rate = derivatives->viscosity_derivative_wrt_strain_rate[q];
               const SymmetricTensor<2,dim> strain_rate = scratch.material_model_inputs.strain_rate[q];
 
+              // In the preconditioning, the S.P.D. factor should always be used.
               // todo: make this 0.9 into a global input parameter
-              double alpha = Utilities::compute_spd_factor<dim>(eta, strain_rate, viscosity_derivative_wrt_strain_rate, 0.9);
+              const double alpha = Utilities::compute_spd_factor<dim>(eta, strain_rate, viscosity_derivative_wrt_strain_rate, 0.9);
 
               for (unsigned int i = 0; i < stokes_dofs_per_cell; ++i)
                 for (unsigned int j = 0; j < stokes_dofs_per_cell; ++j)
@@ -141,6 +143,7 @@ namespace aspect
       const unsigned int stokes_dofs_per_cell = data.local_dof_indices.size();
       const unsigned int n_q_points    = scratch.finite_element_values.n_quadrature_points;
       const double derivative_scaling_factor = this->get_newton_handler().get_newton_derivative_scaling_factor();
+      const bool use_spd_factor = this->get_newton_handler().get_use_spd_factor();
 
       for (unsigned int q=0; q<n_q_points; ++q)
         {
@@ -220,7 +223,11 @@ namespace aspect
               const double viscosity_derivative_wrt_pressure = derivatives->viscosity_derivative_wrt_pressure[q];
 
               // todo: make this 0.9 into a global input parameter
-              double alpha  = Utilities::compute_spd_factor<dim>(eta, strain_rate, viscosity_derivative_wrt_strain_rate, 0.9);
+              double alpha  = 1;
+
+              if (use_spd_factor == true)
+                alpha = Utilities::compute_spd_factor<dim>(eta, strain_rate, viscosity_derivative_wrt_strain_rate, 0.9);
+
 
               for (unsigned int i=0; i<stokes_dofs_per_cell; ++i)
                 {
@@ -234,7 +241,8 @@ namespace aspect
                     for (unsigned int j=0; j<stokes_dofs_per_cell; ++j)
                       {
                         data.local_matrix(i,j) += ( (eta * 2.0 * (scratch.grads_phi_u[i] * scratch.grads_phi_u[j]))
-                                                    + derivative_scaling_factor * alpha * 2.0 * (scratch.grads_phi_u[i] * (viscosity_derivative_wrt_strain_rate * scratch.grads_phi_u[j]) * strain_rate)
+                                                    + derivative_scaling_factor * alpha * (scratch.grads_phi_u[i] * (viscosity_derivative_wrt_strain_rate * scratch.grads_phi_u[j]) * strain_rate
+                                                                                           + scratch.grads_phi_u[j] * (viscosity_derivative_wrt_strain_rate * scratch.grads_phi_u[i]) * strain_rate)
                                                     + derivative_scaling_factor * pressure_scaling * scratch.grads_phi_u[i] * 2.0 * viscosity_derivative_wrt_pressure * scratch.phi_p[j] * strain_rate
                                                     // assemble \nabla p as -(p, div v):
                                                     - (pressure_scaling *
@@ -252,50 +260,50 @@ namespace aspect
                                            " = " + Utilities::to_string(eta)));
                       }
                 }
-#if DEBUG
-              // Testing whether the Jacobian is Symmetric Positive Definite (SPD)
-              if (assemble_newton_stokes_matrix)
-                {
-                  bool testing = true;
-                  for (unsigned int sample = 0; sample < 10; ++sample)
-                    {
-                      Vector<double> tmp (stokes_dofs_per_cell);
+              /*#if DEBUG
+                            // Testing whether the Jacobian is Symmetric Positive Definite (SPD)
+                            if (assemble_newton_stokes_matrix)
+                              {
+                                bool testing = true;
+                                for (unsigned int sample = 0; sample < 10; ++sample)
+                                  {
+                                    Vector<double> tmp (stokes_dofs_per_cell);
 
-                      for (unsigned int i=0; i<stokes_dofs_per_cell; ++i)
-                        if (scratch.finite_element_values.get_fe().system_to_component_index(i).first < dim)
-                          tmp[i] = Utilities::generate_normal_random_number (0, 1);
+                                    for (unsigned int i=0; i<stokes_dofs_per_cell; ++i)
+                                      if (scratch.finite_element_values.get_fe().system_to_component_index(i).first < dim)
+                                        tmp[i] = Utilities::generate_normal_random_number (0, 1);
 
-                      const double abc =  data.local_matrix.matrix_norm_square(tmp)/(tmp*tmp);
-                      if (abc < -1e-12*data.local_matrix.frobenius_norm())
-                        {
-                          testing = false;
-                          std::cout << sample << " Not SPD: " << abc << "; " << std::endl;
+                                    const double abc =  data.local_matrix.matrix_norm_square(tmp)/(tmp*tmp);
+                                    if (abc < -1e-12*data.local_matrix.frobenius_norm())
+                                      {
+                                        testing = false;
+                                        std::cout << sample << " Not SPD: " << abc << "; " << std::endl;
 
-                          for (unsigned int i=0; i<stokes_dofs_per_cell; ++i)
-                            {
-                              for (unsigned int j=0; j<stokes_dofs_per_cell; ++j)
-                                std::cout << std::setprecision(1)  << data.local_matrix(i,j) << "," << std::flush;
-                              std::cout << "},{" << std::endl;
-                            }
-                          std::cout << std::endl;
-                          std::cout << std::setprecision(6) << std::endl;
+                                        for (unsigned int i=0; i<stokes_dofs_per_cell; ++i)
+                                          {
+                                            for (unsigned int j=0; j<stokes_dofs_per_cell; ++j)
+                                              std::cout << std::setprecision(1)  << data.local_matrix(i,j) << "," << std::flush;
+                                            std::cout << "},{" << std::endl;
+                                          }
+                                        std::cout << std::endl;
+                                        std::cout << std::setprecision(6) << std::endl;
 
-                          Assert(testing,ExcMessage ("Error: Assembly not SPD!."));
+                                        Assert(testing,ExcMessage ("Error: Assembly not SPD!."));
 
-                          // Testing whether all entries are finite.
-                          for (unsigned int i=0; i<stokes_dofs_per_cell; ++i)
-                            {
-                              for (unsigned int j=0; j<stokes_dofs_per_cell; ++j)
-                                {
-                                  Assert(dealii::numbers::is_finite(data.local_matrix(i,j)),ExcMessage ("Error: Assembly matrix is not finite."));
-                                }
-                            }
-                        }
-                    }
-                  if (testing == false)
-                    std::cout << std::endl;
-                }
-#endif
+                                        // Testing whether all entries are finite.
+                                        for (unsigned int i=0; i<stokes_dofs_per_cell; ++i)
+                                          {
+                                            for (unsigned int j=0; j<stokes_dofs_per_cell; ++j)
+                                              {
+                                                Assert(dealii::numbers::is_finite(data.local_matrix(i,j)),ExcMessage ("Error: Assembly matrix is not finite."));
+                                              }
+                                          }
+                                      }
+                                  }
+                                if (testing == false)
+                                  std::cout << std::endl;
+                              }
+              #endif*/
             }
         }
     }
@@ -335,8 +343,9 @@ namespace aspect
             }
 
           // Viscosity scalar
-          const double two_thirds = 2.0 / 3.0;
-          const double eta_two_thirds = scratch.material_model_outputs.viscosities[q] * two_thirds;
+          const double one_thirds = 1.0 / 3.0;
+          const double eta_two_thirds = scratch.material_model_outputs.viscosities[q] * 2.0 *one_thirds;
+          //const double eta_one_thirds = scratch.material_model_outputs.viscosities[q] * one_thirds;
 
           const SymmetricTensor<4,dim> &stress_strain_director =
             scratch.material_model_outputs.stress_strain_directors[q];
@@ -369,12 +378,18 @@ namespace aspect
               const SymmetricTensor<2,dim> viscosity_derivative_wrt_strain_rate = derivatives->viscosity_derivative_wrt_strain_rate[q];
               const double viscosity_derivative_wrt_pressure = derivatives->viscosity_derivative_wrt_pressure[q];
 
+              const double eta = scratch.material_model_outputs.viscosities[q];
+              const SymmetricTensor<2,dim> strain_rate = scratch.material_model_inputs.strain_rate[q];
+              const double alpha = Utilities::compute_spd_factor<dim>(eta, strain_rate, viscosity_derivative_wrt_strain_rate, 0.9);
               for (unsigned int i=0; i<stokes_dofs_per_cell; ++i)
                 for (unsigned int j=0; j<stokes_dofs_per_cell; ++j)
                   {
                     data.local_matrix(i,j) += (-eta_two_thirds * (scratch.div_phi_u[i] * scratch.div_phi_u[j])
                                                - derivative_scaling_factor * two_thirds * scratch.div_phi_u[i] * ( (viscosity_derivative_wrt_strain_rate * scratch.grads_phi_u[j]) * velocity_divergence)
                                                - derivative_scaling_factor * two_thirds * (scratch.div_phi_u[i] * viscosity_derivative_wrt_pressure * scratch.phi_p[j]) * velocity_divergence
+                                               //- derivative_scaling_factor * alpha * one_thirds * ( scratch.div_phi_u[i] * ( (viscosity_derivative_wrt_strain_rate * scratch.grads_phi_u[j]) * velocity_divergence)
+                                               //                                                  + scratch.div_phi_u[j] * ( (viscosity_derivative_wrt_strain_rate * scratch.grads_phi_u[i]) * velocity_divergence))
+                                               //- derivative_scaling_factor * 2.0 * one_thirds * (scratch.div_phi_u[i] * viscosity_derivative_wrt_pressure * scratch.phi_p[j]) * velocity_divergence
                                               )
                                               * JxW;
                   }
