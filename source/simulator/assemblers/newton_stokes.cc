@@ -344,7 +344,8 @@ namespace aspect
 
           // Viscosity scalar
           const double one_thirds = 1.0 / 3.0;
-          const double eta_two_thirds = scratch.material_model_outputs.viscosities[q] * 2.0 *one_thirds;
+          const double two_thirds = 2.0 * one_thirds;
+          const double eta_two_thirds = scratch.material_model_outputs.viscosities[q] * two_thirds;
           //const double eta_one_thirds = scratch.material_model_outputs.viscosities[q] * one_thirds;
 
           const SymmetricTensor<4,dim> &stress_strain_director =
