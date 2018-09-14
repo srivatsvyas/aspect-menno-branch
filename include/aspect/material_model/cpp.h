@@ -24,6 +24,7 @@
 #include <aspect/material_model/interface.h>
 #include <aspect/simulator_access.h>
 #include <aspect/utilities.h>
+#include <regex>
 
 #if ASPECT_USE_SHARED_LIBS==1
 #  include <dlfcn.h>
@@ -79,12 +80,34 @@ namespace aspect
          */
 
       private:
-        double ref_visc;
-        bool compressible;
+        double reference_viscosity_param;
+        bool compressible_param;
+        bool needs_simulator;
+
+        virtual void generate_src (const std::vector<std::string> user_includes,
+                                   const std::string user_variable_defs,
+                                   const std::string user_update_function,
+                                   const std::string user_viscosity_function,
+                                   const std::string user_density_function,
+                                   const std::string user_thermal_conductivity_function,
+                                   const std::string user_thermal_expansivity_function,
+                                   const std::string user_specific_heat_function,
+                                   const std::string user_compressibility_function,
+                                   const std::string user_entropy_derivative_p_function,
+                                   const std::string user_entropy_derivative_t_function,
+                                   const std::string user_reaction_function,
+                                   const std::string indenter,
+                                   const std::string fname) const;
+
+        // Define function pointers for the case where we need simulator access
+        // and the case where we don't.
         typedef void (*eval_t)(const MaterialModel::MaterialModelInputs<dim> &in,
-                               MaterialModel::MaterialModelOutputs<dim> &out,
-                               ::aspect::SimulatorAccess<dim> simulator);
-        eval_t material_eval;
+                               MaterialModel::MaterialModelOutputs<dim> &out);
+        typedef void (*eval_sim_t)(const MaterialModel::MaterialModelInputs<dim> &in,
+                                   MaterialModel::MaterialModelOutputs<dim> &out,
+                                   ::aspect::SimulatorAccess<dim> simulator);
+        eval_t eval;
+        eval_sim_t eval_sim;
     };
 
   }
