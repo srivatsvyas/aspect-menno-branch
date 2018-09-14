@@ -25,7 +25,7 @@
 #include <aspect/simulator_access.h>
 #include <aspect/utilities.h>
 
-//#if ASPECT_USE_SHARED_LIBS==1
+#if ASPECT_USE_SHARED_LIBS==1
 #  include <dlfcn.h>
 #  ifdef ASPECT_HAVE_LINK_H
 #    include <link.h>
