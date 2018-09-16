@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2011 - 2017 by the authors of the ASPECT code.
+  Copyright (C) 2018 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -26,11 +26,9 @@
 #include <aspect/utilities.h>
 #include <regex>
 
+// This plugin requires that we can load shared libraries.
 #if ASPECT_USE_SHARED_LIBS==1
-#  include <dlfcn.h>
-#  ifdef ASPECT_HAVE_LINK_H
-#    include <link.h>
-#  endif
+#include <dlfcn.h>
 #endif
 
 namespace aspect
@@ -40,8 +38,120 @@ namespace aspect
     using namespace dealii;
 
     /**
-     * A material model that compiles user-defined C++
-     * code at runtime.
+     * A structure for organizing user code snippets.
+     */
+    struct UserCode
+    {
+      std::vector<std::string> includes;
+      std::string variable_defs;
+      std::string update_function;
+      std::string viscosity_function;
+      std::string density_function;
+      std::string thermal_conductivity_function;
+      std::string thermal_expansivity_function;
+      std::string specific_heat_function;
+      std::string compressibility_function;
+      std::string entropy_derivative_p_function;
+      std::string entropy_derivative_t_function;
+      std::string reaction_function;
+    };
+
+    /**
+     * Converts a string describing a nonlinear dependency
+     * to its equivalent `Dependence'.
+     */
+    inline
+    NonlinearDependence::Dependence
+    str2dep (const std::string depstr)
+    {
+      if (depstr == "none")
+        {
+          return NonlinearDependence::none;
+        }
+      else if (depstr == "compositional fields")
+        {
+          return NonlinearDependence::compositional_fields;
+        }
+      else if (depstr == "pressure")
+        {
+          return NonlinearDependence::pressure;
+        }
+      else if (depstr == "strain rate")
+        {
+          return NonlinearDependence::strain_rate;
+        }
+      else if (depstr == "temperature")
+        {
+          return NonlinearDependence::temperature;
+        }
+      else
+        {
+          AssertThrow(false, ExcMessage("Nonlinear dependencies must be one of "
+                                        "non|compositional fields|pressure|strain rate|temperature."));
+        }
+    }
+
+    /**
+     * Execute a command using the system() command processor. Return the
+     * exit code.
+     */
+    int
+    execute (const std::string &cmd)
+    {
+      AssertThrow(system((char *)0) != 0,
+                  ExcMessage("The 'CPP' material model requires a command-processor, "
+                             "which appears to be unavailable on this system."));
+
+      return system(cmd.c_str());
+    }
+
+    /**
+     * A material model that compiles user-defined C++ code at runtime.
+     * It exposes plugin functionality at the input parameter level,
+     * allowing quick deployment of new material models without requiring
+     * knowledge of Aspect's plugin architecture.
+     *
+     * It aims to make models more easily auditable, as more of the relevant
+     * model code can be contained in a single parameter file.
+     *
+     * The generated code can be assumed to have the form:
+     * ```
+        #include <USER>
+        #include <INCLUDES>
+        #include <aspect/material_model/interface.h>
+        #include <aspect/simulator.h>
+        #include <aspect/simulator_access.h>
+        namespace aspect {
+          namespace MaterialModel {
+            using namespace dealii;
+            class Local_
+            {
+              public:
+                const unsigned int dim = dim;
+                USER GLOBAL VARIABLES
+                void update (position, temperature, ...)
+                  { USER_UPDATE_CODE }
+                double viscosity (position, temperature, pressure, ...)
+                  { USER VISCOSITY CODE }
+                double density (position, temperature, pressure, ...)
+                  { USER DENSITY CODE }
+                ...
+            } local;
+
+            eval (in, out, simulator)
+            {
+              for (unsigned int _i=0; _i<in.position.size(); ++_i)
+                {
+                  local.update(in.position[_i], in.temperature[_i], ...);
+                  out.viscosities[_i] = local.viscosity (in.position[_i], ...);
+                  out.densities[_i]   = local.density (in.position[_i], ...);
+                  ...
+                }
+            }
+          }
+        }
+     * ```
+     * where USER_* are defined by input parameters.
      *
      * @ingroup MaterialModels
      */
@@ -70,7 +180,9 @@ namespace aspect
         declare_parameters (ParameterHandler &prm);
 
         /**
-         * Read the parameters this class declares from the parameter file.
+         * Reads parameters from user input, then coordinates generating,
+         * compiling, and linking functions to be used when evaluating
+         * material properties.
          */
         virtual
         void
@@ -81,33 +193,19 @@ namespace aspect
 
       private:
         double reference_viscosity_param;
-        bool compressible_param;
-        bool needs_simulator;
+        bool is_compressible_param;
 
-        virtual void generate_src (const std::vector<std::string> user_includes,
-                                   const std::string user_variable_defs,
-                                   const std::string user_update_function,
-                                   const std::string user_viscosity_function,
-                                   const std::string user_density_function,
-                                   const std::string user_thermal_conductivity_function,
-                                   const std::string user_thermal_expansivity_function,
-                                   const std::string user_specific_heat_function,
-                                   const std::string user_compressibility_function,
-                                   const std::string user_entropy_derivative_p_function,
-                                   const std::string user_entropy_derivative_t_function,
-                                   const std::string user_reaction_function,
-                                   const std::string indenter,
-                                   const std::string fname) const;
-
-        // Define function pointers for the case where we need simulator access
-        // and the case where we don't.
+        /**
+         * Define function pointer for the new evaluate function.
+         */
         typedef void (*eval_t)(const MaterialModel::MaterialModelInputs<dim> &in,
-                               MaterialModel::MaterialModelOutputs<dim> &out);
-        typedef void (*eval_sim_t)(const MaterialModel::MaterialModelInputs<dim> &in,
-                                   MaterialModel::MaterialModelOutputs<dim> &out,
-                                   ::aspect::SimulatorAccess<dim> simulator);
-        eval_t eval;
-        eval_sim_t eval_sim;
+                               MaterialModel::MaterialModelOutputs<dim> &out,
+                               const ::aspect::SimulatorAccess<dim> *simulator);
+
+        /**
+         * Pointer to the user's evaluation function.
+         */
+        eval_t user_eval;
     };
 
   }
