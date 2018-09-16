@@ -106,7 +106,7 @@ namespace aspect
       cmfile.open((cdir + "CMakeLists.txt").c_str(), std::ios_base::out);
       cmfile << "CMAKE_MINIMUM_REQUIRED(VERSION 2.8.8)\n"
              << "\n"
-             << "FIND_PACKAGE(Aspect QUIET HINTS "<<ASPECT_SOURCE_DIR<<" ${Aspect_DIR} $ENV{ASPECT_DIR})\n"
+             << "FIND_PACKAGE(Aspect QUIET HINTS "<<ASPECT_SOURCE_DIR<<" " << ASPECT_CURRENT_BINARY_DIR << "  ${Aspect_DIR} $ENV{ASPECT_DIR})\n"
              << "\n"
              << "IF (NOT Aspect_FOUND)\n"
              << "  MESSAGE(FATAL_ERROR \"\\n\"\n"

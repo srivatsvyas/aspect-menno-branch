@@ -105,6 +105,13 @@ FOREACH(_source_file ${TARGET_SRC})
     APPEND PROPERTY COMPILE_DEFINITIONS ASPECT_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 ENDFOREACH()
 
+# Pass down the current directory to the binary. This can be used
+# to hard-code the location of the build directory, for use by for
+# example the run time compilation of the cpp material model.
+FOREACH(_source_file ${TARGET_SRC})
+  SET_PROPERTY(SOURCE ${_source_file}
+    APPEND PROPERTY COMPILE_DEFINITIONS ASPECT_CURRENT_BINARY_DIR="${CMAKE_CURRENT_BINARY_DIR}")
+ENDFOREACH()
 
 
 # load in version info and export it
