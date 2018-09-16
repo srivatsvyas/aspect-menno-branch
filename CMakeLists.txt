@@ -273,6 +273,8 @@ IF (DEAL_II_STATIC_EXECUTABLE STREQUAL "ON")
   SET(ASPECT_USE_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 ENDIF()
 
+SET(ASPECT_SAFE OFF CACHE BOOL "If ON, we disable code that exposes system resources via user parameters.")
+
 INCLUDE (CheckCXXSourceCompiles)
 
 SET(_backup_libs ${CMAKE_REQUIRED_LIBRARIES})
@@ -321,6 +323,20 @@ IF (ASPECT_HAVE_LINK_H)
   FOREACH(_source_file ${TARGET_SRC})
     SET_PROPERTY(SOURCE ${_source_file}
       APPEND PROPERTY COMPILE_DEFINITIONS ASPECT_HAVE_LINK_H=1)
+  ENDFOREACH()
+ENDIF()
+
+IF (ASPECT_SAFE)
+  MESSAGE(STATUS "Disabling features that expose system resources via user parameters")
+  FOREACH(_source_file ${TARGET_SRC})
+    SET_PROPERTY(SOURCE ${_source_file}
+      APPEND PROPERTY COMPILE_DEFINITIONS ASPECT_SAFE=1)
+  ENDFOREACH()
+ELSE()
+  MESSAGE(STATUS "Enabling features that expose system resources via user parameters")
+  FOREACH(_source_file ${TARGET_SRC})
+    SET_PROPERTY(SOURCE ${_source_file}
+      APPEND PROPERTY COMPILE_DEFINITIONS ASPECT_SAFE=0)
   ENDFOREACH()
 ENDIF()
 

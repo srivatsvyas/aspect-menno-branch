@@ -478,6 +478,7 @@ namespace aspect
     void
     CPP<dim>::parse_parameters (ParameterHandler &prm)
     {
+#if ASPECT_SAFE==0
 #if ASPECT_USE_SHARED_LIBS==1
       prm.enter_subsection ("Material model");
       {
@@ -592,6 +593,14 @@ namespace aspect
       AssertThrow(false, ExcMessage("The 'cpp' material model requires "
                                     "that Aspect can load shared libraries. "
                                     "Please check your build configuration."));
+#endif
+#else
+      // ASPECT_SAFE == 1
+      AssertThrow(false, ExcMessage("The 'cpp' material model requires "
+                                    "the ability to execute arbitrary code, "
+                                    "which is disabled by the ASPECT_SAFE "
+                                    "variable. Please check your build "
+                                    "configuration."));
 #endif
     }
   }
