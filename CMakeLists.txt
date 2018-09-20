@@ -357,16 +357,35 @@ ENDIF()
 
 # Check whether we can find the WorldBuilder files. If so, make sure we
 # add a preprocessor #define that says that the WorldBuilder exists.
-EXECUTE_PROCESS(COMMAND ls ${CMAKE_SOURCE_DIR}/contrib/WorldBuilder/VERSION
+set (WORLD_BUILDER_SOURCE_DIR ${CMAKE_SOURCE_DIR}/contrib/WorldBuilder)
+EXECUTE_PROCESS(COMMAND ls ${WORLD_BUILDER_SOURCE_DIR}/VERSION
                 RESULT_VARIABLE result
                 OUTPUT_QUIET ERROR_QUIET)
 IF (result)
   MESSAGE("-- World Builder not found.")
   SET(ASPECT_WITH_WORLD_BUILDER OFF CACHE BOOL "" FORCE)
 ELSE()
-  FILE(STRINGS "${CMAKE_SOURCE_DIR}/contrib/WorldBuilder/VERSION" WorldBuilderVersion)
+  FILE(STRINGS "${WORLD_BUILDER_SOURCE_DIR}/VERSION" WorldBuilderVersion)
   MESSAGE("-- World Builder version ${WorldBuilderVersion} found.")
   SET(ASPECT_WITH_WORLD_BUILDER ON CACHE BOOL "If ON the World Builder is compiled togheter with ASPECT.")
+
+  # generate the WB config file by loading the version number
+  FILE(STRINGS "${WORLD_BUILDER_SOURCE_DIR}/VERSION" WORLD_BUILDER_VERSION LIMIT_COUNT 1)
+
+  string(REPLACE "-" "." VERSION_LIST_TEMP ${WORLD_BUILDER_VERSION})
+  string(REPLACE "." ";" VERSION_LIST ${VERSION_LIST_TEMP})
+  list(LENGTH VERSION_LIST VERSION_LENGTH)
+  list(GET VERSION_LIST 0 WORLD_BUILDER_VERSION_MAJOR)
+  list(GET VERSION_LIST 1 WORLD_BUILDER_VERSION_MINOR)
+  list(GET VERSION_LIST 2 WORLD_BUILDER_VERSION_PATCH)
+  if (${VERSION_LENGTH} GREATER 3)
+    list(GET VERSION_LIST 3 WORLD_BUILDER_VERSION_LABEL)
+  endif()
+
+  # We do not really need the git details from the WB
+  # Generate the config file
+  configure_file("${WORLD_BUILDER_SOURCE_DIR}/source/config.cc.in" "${WORLD_BUILDER_SOURCE_DIR}/source/config.cc" @ONLY)
+
 
   FOREACH(_source_file ${TARGET_SRC})
     SET_PROPERTY(SOURCE ${_source_file}
