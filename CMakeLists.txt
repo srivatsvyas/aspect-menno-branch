@@ -368,6 +368,8 @@ ELSE()
   MESSAGE("-- World Builder version ${WorldBuilderVersion} found.")
   SET(ASPECT_WITH_WORLD_BUILDER ON CACHE BOOL "If ON the World Builder is compiled togheter with ASPECT.")
 
+  configure_file("${CMAKE_SOURCE_DIR}/contrib/WorldBuilder/source/config.cc.in" "${CMAKE_SOURCE_DIR}/contrib/WorldBuilder/source/config.cc" @ONLY)
+
   FOREACH(_source_file ${TARGET_SRC})
     SET_PROPERTY(SOURCE ${_source_file}
                  APPEND PROPERTY COMPILE_DEFINITIONS ASPECT_USE_WORLD_BUILDER=1)
