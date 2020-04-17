@@ -106,10 +106,9 @@ end
 
 
 subsection Material model
-  set Model name = tosi 
+  set Model name = TosiMaterial
 
-  subsection Tosi model
-    set Use analytical derivative     = true
+  subsection Tosi benchmark
     set Reference density             = 1
     set Reference specific heat       = 1
     set Reference temperature         = 0
