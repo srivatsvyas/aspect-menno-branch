@@ -22,6 +22,7 @@
 #include <aspect/particle/property/lpo_s_wave_anisotropy.h>
 #include <aspect/particle/property/lpo_elastic_tensor.h>
 #include <aspect/particle/property/lpo.h>
+#include <aspect/particle/world.h>
 
 #include <aspect/utilities.h>
 
@@ -132,10 +133,10 @@ namespace aspect
 
       template <int dim>
       void
-      LpoSWaveAnisotropy<dim>::update_one_particle_property(const unsigned int data_position,
-                                                            const Point<dim> &position,
-                                                            const Vector<double> &solution,
-                                                            const std::vector<Tensor<1,dim> > &gradients,
+      LpoSWaveAnisotropy<dim>::update_one_particle_property(const unsigned int  /*data_position*/,
+                                                            const Point<dim> & /*position*/,
+                                                            const Vector<double> & /*solution*/,
+                                                            const std::vector<Tensor<1,dim> > & /*gradients*/,
                                                             const ArrayView<double> &data) const
       {
 
@@ -199,14 +200,14 @@ namespace aspect
 
       template<int dim>
       std::array<std::array<double,3>,3>
-      LpoSWaveAnisotropy<dim>::compute_s_wave_anisotropy(Tensor<2,6> &elastic_tensor) const
+      LpoSWaveAnisotropy<dim>::compute_s_wave_anisotropy(Tensor<2,6> &/*elastic_tensor*/) const
       {
         // todo: find out why returning a {{averaged_a[0],...},{...},{...}} does not compile.
 
 
-        std::array a = {0,0,0};
-        std::array b = {0,0,0};
-        std::array c = {0,0,0};
+        //std::array a = {0,0,0};
+        //std::array b = {0,0,0};
+        //std::array c = {0,0,0};
 
         //return {a,b,c};
 

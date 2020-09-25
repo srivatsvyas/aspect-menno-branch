@@ -30,6 +30,9 @@
 #include <deal.II/base/data_out_base.h>
 #include <tuple>
 
+DEAL_II_DISABLE_EXTRA_DIAGNOSTICS
+#include <boost/random.hpp>
+DEAL_II_ENABLE_EXTRA_DIAGNOSTICS
 namespace aspect
 {
   namespace Postprocess
@@ -245,7 +248,7 @@ namespace aspect
          * Handle to a thread that is used to write master file data in the
          * background. The writer() function runs on this background thread.
          */
-        Threads::Thread<void> background_thread_master;
+        std::thread background_thread_master;
 
         /**
          * What raw lpo data to write out
@@ -261,7 +264,7 @@ namespace aspect
          * Handle to a thread that is used to write content file data in the
          * background. The writer() function runs on this background thread.
          */
-        Threads::Thread<void> background_thread_content_raw;
+        std::thread background_thread_content_raw;
 
         /**
          * What draw volume weighted lpo data to write out
@@ -277,7 +280,7 @@ namespace aspect
          * Handle to a thread that is used to write content file data in the
          * background. The writer() function runs on this background thread.
          */
-        Threads::Thread<void> background_thread_content_draw_volume_weighting;
+        std::thread background_thread_content_draw_volume_weighting;
 
         /**
          * Stores the particle property fields which are ouptut to the
