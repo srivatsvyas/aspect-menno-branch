@@ -285,6 +285,11 @@ namespace aspect
         std::thread background_thread_content_draw_volume_weighting;
 
         /**
+         * Whether to compress the raw and weighed lpo data output files with zlib.
+         */
+        bool compress_lpo_data_files;
+
+        /**
          * Stores the particle property fields which are ouptut to the
          * visualization file.
          */
@@ -300,7 +305,8 @@ namespace aspect
         static
         void writer (const std::string filename,
                      const std::string temporary_filename,
-                     const std::string *file_contents);
+                     const std::string *file_contents,
+                     const bool compress_contents);
     };
   }
 }
