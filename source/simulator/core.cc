@@ -142,11 +142,7 @@ namespace aspect
     melt_handler (parameters.include_melt_transport ?
                   std_cxx14::make_unique<MeltHandler<dim>>(prm) :
                   nullptr),
-    newton_handler ((parameters.nonlinear_solver == NonlinearSolver::iterated_Advection_and_Newton_Stokes ||
-                     parameters.nonlinear_solver == NonlinearSolver::single_Advection_iterated_Newton_Stokes ||
-                     parameters.nonlinear_solver == NonlinearSolver::no_Advection_iterated_defect_correction_Stokes ||
-                     parameters.nonlinear_solver == NonlinearSolver::single_Advection_iterated_defect_correction_Stokes ||
-                     parameters.nonlinear_solver == NonlinearSolver::iterated_Advection_and_defect_correction_Stokes) ?
+    newton_handler (Parameters<dim>::is_defect_correction(parameters.nonlinear_solver) ?
                     std_cxx14::make_unique<NewtonHandler<dim>>() :
                     nullptr),
     post_signal_creation(
@@ -233,11 +229,7 @@ namespace aspect
 
     rebuild_stokes_matrix (true),
     assemble_newton_stokes_matrix (true),
-    assemble_newton_stokes_system ((parameters.nonlinear_solver == NonlinearSolver::iterated_Advection_and_Newton_Stokes ||
-                                    parameters.nonlinear_solver == NonlinearSolver::single_Advection_iterated_Newton_Stokes ||
-                                    parameters.nonlinear_solver == NonlinearSolver::no_Advection_iterated_defect_correction_Stokes ||
-                                    parameters.nonlinear_solver == NonlinearSolver::single_Advection_iterated_defect_correction_Stokes ||
-                                    parameters.nonlinear_solver == NonlinearSolver::iterated_Advection_and_defect_correction_Stokes)
+    assemble_newton_stokes_system (Parameters<dim>::is_defect_correction(parameters.nonlinear_solver)
                                    ?
                                    true
                                    :
@@ -373,6 +365,7 @@ namespace aspect
         mesh_deformation = std_cxx14::make_unique<MeshDeformation::MeshDeformationHandler<dim>>(*this);
         mesh_deformation->initialize_simulator(*this);
         mesh_deformation->parse_parameters(prm);
+        mesh_deformation->initialize();
       }
 
     // Initialize the melt handler
@@ -388,11 +381,7 @@ namespace aspect
 
     // If the solver type is a Newton or defect correction type of solver, we need to set make sure
     // assemble_newton_stokes_system set to true.
-    if (parameters.nonlinear_solver == NonlinearSolver::iterated_Advection_and_Newton_Stokes ||
-        parameters.nonlinear_solver == NonlinearSolver::single_Advection_iterated_Newton_Stokes ||
-        parameters.nonlinear_solver == NonlinearSolver::no_Advection_iterated_defect_correction_Stokes ||
-        parameters.nonlinear_solver == NonlinearSolver::single_Advection_iterated_defect_correction_Stokes ||
-        parameters.nonlinear_solver == NonlinearSolver::iterated_Advection_and_defect_correction_Stokes)
+    if (Parameters<dim>::is_defect_correction(parameters.nonlinear_solver))
       {
         assemble_newton_stokes_system = true;
         newton_handler->initialize_simulator(*this);
@@ -548,16 +537,15 @@ namespace aspect
   start_timestep ()
   {
     // first produce some output for the screen to show where we are
-    if (parameters.convert_to_years == true)
+    {
+      const char *unit = (parameters.convert_to_years ? "years" : "seconds");
+      const double multiplier = (parameters.convert_to_years ? 1./year_in_seconds : 1.0);
+
       pcout << "*** Timestep " << timestep_number
-            << ":  t=" << time/year_in_seconds
-            << " years"
+            << ":  t=" << (time * multiplier) << ' ' << unit
+            << ", dt=" << (time_step * multiplier) << ' ' << unit
             << std::endl;
-    else
-      pcout << "*** Timestep " << timestep_number
-            << ":  t=" << time
-            << " seconds"
-            << std::endl;
+    }
 
     nonlinear_iteration = 0;
 
@@ -1393,20 +1381,8 @@ namespace aspect
 
     // Note: this has to happen _before_ we do hanging node constraints,
     // because inconsistent constraints could be generated in parallel otherwise.
-    {
-      using periodic_boundary_set
-        = std::set< std::pair< std::pair< types::boundary_id, types::boundary_id>, unsigned int> >;
-      periodic_boundary_set pbs = geometry_model->get_periodic_boundary_pairs();
-
-      for (periodic_boundary_set::iterator p = pbs.begin(); p != pbs.end(); ++p)
-        {
-          DoFTools::make_periodicity_constraints(dof_handler,
-                                                 (*p).first.first,  // first boundary id
-                                                 (*p).first.second, // second boundary id
-                                                 (*p).second,       // cartesian direction for translational symmetry
+    geometry_model->make_periodicity_constraints(dof_handler,
                                                  constraints);
-        }
-    }
 
     //  Make hanging node constraints:
     DoFTools::make_hanging_node_constraints (dof_handler,
@@ -1611,11 +1587,12 @@ namespace aspect
       if (parameters.mesh_deformation_enabled)
         x_system.push_back( &mesh_deformation->mesh_velocity );
 
-      std::vector<const LinearAlgebra::Vector *> x_fs_system (1);
+      std::vector<const LinearAlgebra::Vector *> x_fs_system (2);
 
       if (parameters.mesh_deformation_enabled)
         {
           x_fs_system[0] = &mesh_deformation->mesh_displacements;
+          x_fs_system[1] = &mesh_deformation->initial_topography;
           mesh_deformation_trans
             = std_cxx14::make_unique<parallel::distributed::SolutionTransfer<dim,LinearAlgebra::Vector>>
               (mesh_deformation->mesh_deformation_dof_handler);
@@ -1713,17 +1690,22 @@ namespace aspect
           constraints.distribute (distributed_mesh_velocity);
           mesh_deformation->mesh_velocity = distributed_mesh_velocity;
 
-          LinearAlgebra::Vector distributed_mesh_displacements;
+          LinearAlgebra::Vector distributed_mesh_displacements, distributed_initial_topography;
 
           distributed_mesh_displacements.reinit(mesh_deformation->mesh_locally_owned,
                                                 mpi_communicator);
+          distributed_initial_topography.reinit(mesh_deformation->mesh_locally_owned,
+                                                mpi_communicator);
 
-          std::vector<LinearAlgebra::Vector *> system_tmp (1);
+          std::vector<LinearAlgebra::Vector *> system_tmp (2);
           system_tmp[0] = &distributed_mesh_displacements;
+          system_tmp[1] = &distributed_initial_topography;
 
           mesh_deformation_trans->interpolate (system_tmp);
           mesh_deformation->mesh_vertex_constraints.distribute (distributed_mesh_displacements);
           mesh_deformation->mesh_displacements = distributed_mesh_displacements;
+          mesh_deformation->mesh_vertex_constraints.distribute (distributed_initial_topography);
+          mesh_deformation->initial_topography = distributed_initial_topography;
         }
 
       // Possibly load data of plugins associated with cells
@@ -1969,24 +1951,44 @@ namespace aspect
               }
           }
 
+        // Prepare the next time step:
+        time_stepping_manager.update();
 
+        const double new_time_step_size = time_stepping_manager.get_next_time_step_size();
 
         // if we postprocess nonlinear iterations, this function is called within
         // solve_timestep () in the individual solver schemes
-        if (!parameters.run_postprocessors_on_nonlinear_iterations)
+        if (!time_stepping_manager.should_repeat_time_step()
+            && !parameters.run_postprocessors_on_nonlinear_iterations)
           postprocess ();
 
-        // get new time step size
-        const double new_time_step = time_stepping_manager.compute_time_step_size();
+        if (time_stepping_manager.should_refine_mesh())
+          {
+            pcout << "Refining the mesh based on the time stepping manager ..." << std::endl;
+            refine_mesh(max_refinement_level);
+          }
+        else
+          maybe_refine_mesh(new_time_step_size, max_refinement_level);
 
-        // see if we want to refine the mesh
-        maybe_refine_mesh(new_time_step, max_refinement_level);
+        if (time_stepping_manager.should_repeat_time_step())
+          {
+            pcout << "Repeating the current time step based on the time stepping manager ..." << std::endl;
+
+            // TODO: We need to make a copy of the particle world and then restore it here.
+            AssertThrow(!this->particle_world,
+                        ExcNotImplemented("Repeating time steps with particles is currently not supported!"));
+
+            // adjust time and time_step size:
+            time = time - time_step + new_time_step_size;
+            time_step = new_time_step_size;
+            continue; // repeat time step loop
+          }
 
         // see if we want to write a timing summary
         maybe_write_timing_output();
 
         // update values for timestep, increment time step by one.
-        advance_time(new_time_step);
+        advance_time(new_time_step_size);
 
         // Check whether to terminate the simulation:
         const bool should_terminate = time_stepping_manager.should_simulation_terminate_now();

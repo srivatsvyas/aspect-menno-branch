@@ -49,17 +49,15 @@ namespace aspect
         /**
          * The main execute() function.
          */
-        virtual
-        std::pair<Reaction, double>
+        double
         execute() override;
 
         static
         void
         declare_parameters (ParameterHandler &prm);
 
-        virtual
         void
-        parse_parameters (ParameterHandler &prm);
+        parse_parameters (ParameterHandler &prm) override;
 
       private:
         /**

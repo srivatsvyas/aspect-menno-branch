@@ -674,6 +674,20 @@ namespace aspect
         has_equidistant_coordinates() const;
 
         /**
+         * Returns the coordinates at which data is stored. This function
+         * can be used to determine the number of data points, or to query
+         * data only at exactly the positions at which it is available (avoiding
+         * interpolation).
+         *
+         * @param dimension The spatial direction for which to return the data
+         * coordinates, e.g. 0 for x-direction, 1 for y-direction, or equivalent
+         * values if your data coordinates are other dimensions such as
+         * temperature, pressure.
+         */
+        const std::vector<double> &
+        get_coordinates(const unsigned int dimension) const;
+
+        /**
          * Returns the column index of a column with the given name
          * @p column_name. Throws an exception if no such
          * column exists or no names were provided in the file.
@@ -1136,6 +1150,15 @@ namespace aspect
         get_column_names() const;
 
         /**
+        * Returns the coordinates at which profile data is stored. This function
+        * can be used to determine the number of data points, or to query
+        * data only at exactly the positions at which it is available (avoiding
+        * interpolation).
+        */
+        const std::vector<double> &
+        get_coordinates() const;
+
+        /**
          * Returns the column index of a column with the given name
          * @p column_name. Throws an exception if no such
          * column exists or no names were provided in the file.
@@ -1332,9 +1355,9 @@ namespace aspect
     template <int dim>
     SymmetricTensor<2,dim> nth_basis_for_symmetric_tensors (const unsigned int k);
 
-    /*
-    * A class that represents a point in a chosen coordinate system.
-    */
+    /**
+     * A class that represents a point in a chosen coordinate system.
+     */
     template <int dim>
     class NaturalCoordinate
     {

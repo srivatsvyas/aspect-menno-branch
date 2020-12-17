@@ -55,6 +55,16 @@ namespace aspect
     }
 
 
+    template <int dim>
+    std::pair<Reaction, double>
+    Interface<dim>::
+    determine_reaction (const TimeStepInfo & /*info*/)
+    {
+      return std::make_pair<Reaction, double>(Reaction::advance, std::numeric_limits<double>::max());
+    }
+
+
+
 
     template <int dim>
     void
@@ -74,25 +84,25 @@ namespace aspect
 
 
     template <int dim>
-    double
+    void
     Manager<dim>::
-    compute_time_step_size() const
+    update()
     {
       double new_time_step = std::numeric_limits<double>::max();
-      Reaction reaction = Reaction::advance;
 
       for (const auto &plugin : active_plugins)
         {
-          std::pair<Reaction, double> answer
-            = plugin->execute();
-
-          new_time_step = std::min(new_time_step, answer.second);
-          reaction = static_cast<Reaction>(std::min(reaction, answer.first));
+          const double this_time_step = plugin->execute();
+          new_time_step = std::min(new_time_step, this_time_step);
         }
 
-      // For now, we only support the default:
-      AssertThrow(reaction == Reaction::advance,
-                  ExcNotImplemented());
+      new_time_step = Utilities::MPI::min(new_time_step, this->get_mpi_communicator());
+
+      // Do not go below a minimum time step size as given by the user. Note that
+      // we first apply the minimum and then apply further restrictions that might
+      // lower this value. Hitting the end time is more important than a minimum
+      // time step size, for example.
+      new_time_step = std::max(minimum_time_step_size, new_time_step);
 
       // Make sure we do not exceed the maximum time step length. This can happen
       // if velocities get too small or even zero in models that are stably stratified
@@ -108,13 +118,96 @@ namespace aspect
         new_time_step = std::min(new_time_step, this->get_parameters().maximum_first_time_step);
 
       // Make sure we reduce the time step length appropriately if we terminate after this step
-      new_time_step = termination_manager.check_for_last_time_step(new_time_step);
+      TimeStepInfo info;
+      info.reduced_by_termination_plugin = false;
+      {
+        const double reduced_time_step = termination_manager.check_for_last_time_step(new_time_step);
+        if (reduced_time_step < new_time_step)
+          {
+            new_time_step = reduced_time_step;
+            info.reduced_by_termination_plugin = true;
+          }
+      }
+      info.next_time_step_size = new_time_step;
 
       AssertThrow (new_time_step > 0,
                    ExcMessage("The time step length for the each time step needs to be positive, "
                               "but the computed step length was: " + std::to_string(new_time_step) + ". "
                               "Please check the time stepping plugins in use."));
-      return new_time_step;
+
+      Reaction reaction = Reaction::advance;
+      double repeat_step_size = std::numeric_limits<double>::max();
+
+      for (const auto &plugin : active_plugins)
+        {
+          const std::pair<Reaction, double> answer = plugin->determine_reaction(info);
+          reaction = static_cast<Reaction>(std::min(reaction, answer.first));
+          repeat_step_size = std::min(repeat_step_size, answer.second);
+        }
+
+      reaction = static_cast<Reaction>(Utilities::MPI::min(static_cast<int>(reaction), this->get_mpi_communicator()));
+      repeat_step_size = Utilities::MPI::min(repeat_step_size, this->get_mpi_communicator());
+
+      current_reaction = reaction;
+      if (should_repeat_time_step())
+        next_time_step_size = repeat_step_size;
+      else
+        next_time_step_size = new_time_step;
+    }
+
+
+
+    template <int dim>
+    double
+    Manager<dim>::get_next_time_step_size() const
+    {
+      return next_time_step_size;
+    }
+
+
+
+    template <int dim>
+    bool
+    Manager<dim>::should_repeat_time_step() const
+    {
+      switch (current_reaction)
+        {
+          case Reaction::refine_and_repeat_step:
+            return true;
+          case Reaction::repeat_step:
+            return true;
+          case Reaction::refine_and_advance:
+            return false;
+          case Reaction::advance:
+            return false;
+
+          default:
+            AssertThrow(false, ExcNotImplemented());
+            return false;
+        }
+    }
+
+
+
+    template <int dim>
+    bool
+    Manager<dim>::should_refine_mesh() const
+    {
+      switch (current_reaction)
+        {
+          case Reaction::refine_and_repeat_step:
+            return true;
+          case Reaction::repeat_step:
+            return false;
+          case Reaction::refine_and_advance:
+            return true;
+          case Reaction::advance:
+            return false;
+
+          default:
+            AssertThrow(false, ExcNotImplemented());
+            return false;
+        }
     }
 
 
@@ -179,6 +272,10 @@ namespace aspect
 
       prm.enter_subsection("Time stepping");
       {
+        prm.declare_entry("Minimum time step size", "0.",
+                          Patterns::Double (0.),
+                          "Specifiy a minimum time step size (or 0 to disable).");
+
         const std::string pattern_of_names
           = std::get<dim>(registered_plugins).get_pattern_of_names ();
 
@@ -213,6 +310,10 @@ namespace aspect
 
       {
         prm.enter_subsection("Time stepping");
+
+        minimum_time_step_size = prm.get_double("Minimum time step size")
+                                 * (this->convert_output_to_years() ? year_in_seconds : 1.0);
+
         std::vector<std::string>
         model_names
           = Utilities::split_string_list(prm.get("List of model names"));
@@ -227,6 +328,7 @@ namespace aspect
             // handle the default case, where the user has not chosen any time stepping scheme explicitly:
 
             model_names.emplace_back("convection time step");
+
             if (this->get_parameters().use_conduction_timestep)
               model_names.emplace_back("conduction time step");
           }

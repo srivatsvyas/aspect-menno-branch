@@ -182,11 +182,17 @@ namespace aspect
                                "'single Advection, iterated Stokes'"));
 
         // Functionality to average the additional RHS terms over the cell is not implemented.
-        // This enforces that the variable 'Material averaging' is set to 'none'.
-        AssertThrow(this->get_parameters().material_averaging == MaterialModel::MaterialAveraging::none,
-                    ExcMessage("Material models with elasticity cannot be used with "
-                               "material averaging. The variable 'Material averaging' "
-                               "in the 'Material model' subsection must be set to 'none'."));
+        // Consequently, it is only possible to use elasticity with the Material averaging schemes
+        // 'none', 'harmonic average only viscosity', 'project to Q1 only viscosity'.
+        AssertThrow((this->get_parameters().material_averaging == MaterialModel::MaterialAveraging::none
+                     ||
+                     this->get_parameters().material_averaging == MaterialModel::MaterialAveraging::harmonic_average_only_viscosity
+                     ||
+                     this->get_parameters().material_averaging == MaterialModel::MaterialAveraging::project_to_Q1_only_viscosity),
+                    ExcMessage("Material models with elasticity can only be used with the material "
+                               "averaging schemes 'none', 'harmonic average only viscosity', and "
+                               "project to Q1 only viscosity'. This parameter ('Material averaging') "
+                               "is located within the 'Material model' subsection."));
       }
 
 
@@ -352,8 +358,8 @@ namespace aspect
       calculate_viscoelastic_viscosity (const double viscosity,
                                         const double elastic_shear_modulus) const
       {
-        const double dte = elastic_timestep();
-        return ( viscosity * dte ) / ( dte + ( viscosity / elastic_shear_modulus ) );
+        const double elastic_viscosity = elastic_shear_modulus*elastic_timestep();
+        return 1. / (1./elastic_viscosity + 1./viscosity);
       }
 
 
@@ -365,10 +371,14 @@ namespace aspect
                                          const SymmetricTensor<2,dim> &stress,
                                          const double shear_modulus) const
       {
-        const SymmetricTensor<2,dim> edot = 2. * (deviator(strain_rate)) + stress /
-                                            (shear_modulus * elastic_timestep());
+        // The second term in the following expression corresponds to the
+        // elastic part of the strain rate deviator. Note the parallels with the
+        // viscous part of the strain rate deviator,
+        // which is equal to 0.5 * stress / viscosity.
+        const SymmetricTensor<2,dim> edot_deviator = deviator(strain_rate) + 0.5*stress /
+                                                     (shear_modulus * elastic_timestep());
 
-        return std::sqrt(std::fabs(second_invariant(edot)));
+        return std::sqrt(std::fabs(second_invariant(edot_deviator)));
       }
     }
   }

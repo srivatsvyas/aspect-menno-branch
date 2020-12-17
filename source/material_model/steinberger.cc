@@ -153,13 +153,13 @@ namespace aspect
           // unique names into the unique_phase_names vector and
           // filling the unique_phase_indices object.
           std::vector<std::string> phase_volume_column_names = material_lookup[i]->phase_volume_column_names();
-          for (unsigned int j = 0; j < phase_volume_column_names.size(); j++)
+          for (const auto &phase_volume_column_name : phase_volume_column_names)
             {
               // iterate over the present unique_phase_names object
               // to find phase_volume_column_names[j].
               std::vector<std::string>::iterator it = std::find(unique_phase_names.begin(),
                                                                 unique_phase_names.end(),
-                                                                phase_volume_column_names[j]);
+                                                                phase_volume_column_name);
 
               // If phase_volume_column_names[j] already exists in unique_phase_names,
               // std::distance finds its index. Otherwise, std::distance will return
@@ -172,7 +172,7 @@ namespace aspect
               // If phase_volume_column_names[j] did not already exist
               // in unique_phase_names, we add it here.
               if (it == unique_phase_names.end())
-                unique_phase_names.push_back(phase_volume_column_names[j]);
+                unique_phase_names.push_back(phase_volume_column_name);
             }
         }
 
@@ -182,7 +182,7 @@ namespace aspect
       radial_viscosity_lookup
         = std_cxx14::make_unique<internal::RadialViscosityLookup>(data_directory+radial_viscosity_file_name,
                                                                   this->get_mpi_communicator());
-      avg_temp.resize(n_lateral_slices);
+      average_temperature.resize(n_lateral_slices);
     }
 
 
@@ -194,9 +194,9 @@ namespace aspect
     {
       if (use_lateral_average_temperature)
         {
-          this->get_lateral_averaging().get_temperature_averages(avg_temp);
-          for (unsigned int i = 0; i < avg_temp.size(); ++i)
-            AssertThrow(numbers::is_finite(avg_temp[i]),
+          this->get_lateral_averaging().get_temperature_averages(average_temperature);
+          for (double temperature : average_temperature)
+            AssertThrow(numbers::is_finite(temperature),
                         ExcMessage("In computing depth averages, there is at"
                                    " least one depth band that does not have"
                                    " any quadrature points in it."
@@ -223,8 +223,8 @@ namespace aspect
       double delta_temperature;
       if (use_lateral_average_temperature)
         {
-          const unsigned int idx = static_cast<unsigned int>((avg_temp.size()-1) * depth / this->get_geometry_model().maximal_depth());
-          delta_temperature = temperature-avg_temp[idx];
+          const unsigned int idx = static_cast<unsigned int>((average_temperature.size()-1) * depth / this->get_geometry_model().maximal_depth());
+          delta_temperature = temperature-average_temperature[idx];
         }
       else
         delta_temperature = temperature-adiabatic_temperature;
@@ -404,7 +404,12 @@ namespace aspect
       std::array<std::pair<double, unsigned int>,2> derivative;
 
       // get the pressures and temperatures at the vertices of the cell
+#if DEAL_II_VERSION_GTE(9,3,0)
+      const QTrapezoid<dim> quadrature_formula;
+#else
       const QTrapez<dim> quadrature_formula;
+#endif
+
       const unsigned int n_q_points = quadrature_formula.size();
       FEValues<dim> fe_values (this->get_mapping(),
                                this->get_fe(),

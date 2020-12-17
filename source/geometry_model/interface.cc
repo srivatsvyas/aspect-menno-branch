@@ -24,6 +24,7 @@
 #include <aspect/simulator_access.h>
 #include <deal.II/base/exceptions.h>
 #include <tuple>
+#include <deal.II/dofs/dof_tools.h>
 
 namespace aspect
 {
@@ -187,8 +188,9 @@ namespace aspect
                                      const std::map<std::string,types::boundary_id> &boundary_names_mapping)
       {
         std::vector<types::boundary_id> results;
-        for (unsigned int i=0; i<names.size(); ++i)
-          results.push_back (translate_boundary_indicator(names[i], boundary_names_mapping));
+        results.reserve(names.size());
+        for (const auto &name : names)
+          results.push_back (translate_boundary_indicator(name, boundary_names_mapping));
 
         return results;
       }
@@ -324,6 +326,27 @@ namespace aspect
     {
       std::get<dim>(registered_plugins).write_plugin_graph ("Geometry model interface",
                                                             out);
+    }
+
+
+
+    template <int dim>
+    void
+    Interface<dim>::make_periodicity_constraints(const DoFHandler<dim> &dof_handler,
+                                                 AffineConstraints<double> &constraints) const
+    {
+      using periodic_boundary_set
+        = std::set< std::pair< std::pair< types::boundary_id, types::boundary_id>, unsigned int> >;
+      periodic_boundary_set pbs = get_periodic_boundary_pairs();
+
+      for (const auto &pb : pbs)
+        {
+          DoFTools::make_periodicity_constraints(dof_handler,
+                                                 pb.first.first,  // first boundary id
+                                                 pb.first.second, // second boundary id
+                                                 pb.second,       // cartesian direction for translational symmetry
+                                                 constraints);
+        }
     }
   }
 }
