@@ -65,22 +65,22 @@ namespace aspect
         void
         parse_parameters (ParameterHandler &prm);
 
-     private:
+      private:
         /**
          * Declare a variable which indicates if and which compositional field should be excluded from the process.
          */
-        signed int excludeComposition; 
+        signed int excludeComposition;
         /**
          * Declare a variable which indicates how many isotherms the user has declared, and a variable to store all those isotherms
          */
         int number_of_isotherms;
-	std::vector<std::vector<std::string> > isotherms;
+        std::vector<std::vector<std::string> > isotherms;
         /**
          * Declare a variable to store the global minimum refinement level and a variable to store the global maximum refinement level set by the user
          */
         unsigned int minimum_refinement_level;
         unsigned int maximum_refinement_level;
-  
+
     };
   }
 }
