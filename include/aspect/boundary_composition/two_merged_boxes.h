@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2011 - 2017 by the authors of the ASPECT code.
+  Copyright (C) 2011 - 2019 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -46,10 +46,9 @@ namespace aspect
          *
          * @copydoc aspect::BoundaryComposition::Interface::boundary_composition()
          */
-        virtual
         double boundary_composition (const types::boundary_id boundary_indicator,
                                      const Point<dim> &position,
-                                     const unsigned int compositional_field) const;
+                                     const unsigned int compositional_field) const override;
 
         /**
          * Declare the parameters this class takes through input files. This
@@ -62,15 +61,14 @@ namespace aspect
         /**
          * Read the parameters this class declares from the parameter file.
          */
-        virtual
         void
-        parse_parameters (ParameterHandler &prm);
+        parse_parameters (ParameterHandler &prm) override;
 
         /**
          * This function performs some basic sanity checks on the parameter
          * values previously read from the input file.
          */
-        virtual void initialize ();
+        void initialize () override;
 
       private:
         /**

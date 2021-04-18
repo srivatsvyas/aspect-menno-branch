@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2011 - 2017 by the authors of the ASPECT code.
+  Copyright (C) 2011 - 2019 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -53,9 +53,8 @@ namespace aspect
          * provides an error indicator. This vector will already have the
          * correct size when the function is called.
          */
-        virtual
         void
-        execute (Vector<float> &error_indicators) const;
+        execute (Vector<float> &error_indicators) const override;
 
         /**
          * Declare the parameters this class takes through input files.
@@ -67,9 +66,8 @@ namespace aspect
         /**
          * Read the parameters this class declares from the parameter file.
          */
-        virtual
         void
-        parse_parameters (ParameterHandler &prm);
+        parse_parameters (ParameterHandler &prm) override;
 
       private:
         /**

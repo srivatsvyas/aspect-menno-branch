@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2011 - 2017 by the authors of the ASPECT code.
+  Copyright (C) 2011 - 2019 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -53,7 +53,7 @@ namespace aspect
          * beginning of the program. Checks preconditions.
          */
         void
-        initialize ();
+        initialize () override;
 
         // avoid -Woverloaded-virtual:
         using Utilities::AsciiDataInitial<dim>::initialize;
@@ -62,9 +62,8 @@ namespace aspect
          * For the current class, this function returns value from the text
          * files.
          */
-        virtual
         void
-        stokes_solution (const Point<dim> &position, Vector<double> &value) const;
+        stokes_solution (const Point<dim> &position, Vector<double> &value) const override;
 
         /**
          * Declare the parameters this class takes through input files.
@@ -77,7 +76,7 @@ namespace aspect
          * Read the parameters this class declares from the parameter file.
          */
         void
-        parse_parameters (ParameterHandler &prm);
+        parse_parameters (ParameterHandler &prm) override;
     };
   }
 }

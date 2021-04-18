@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2011 - 2018 by the authors of the ASPECT code.
+  Copyright (C) 2011 - 2020 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -26,7 +26,17 @@
 #include <aspect/material_model/utilities.h>
 
 #include <deal.II/base/point.h>
+
+// Work around an incorrect instantiation in qprojector.h of deal.II 9.2.0,
+// which requires including qprojector.h before quadrature.h (and not
+// after). This file doesn't actually need qprojector.h, so the include can be
+// removed when we require 9.3.. For more info see
+// https://github.com/geodynamics/aspect/issues/3728
+#if !DEAL_II_VERSION_GTE(9,3,0)
+#include <deal.II/base/qprojector.h>
+#endif
 #include <deal.II/base/quadrature.h>
+
 #include <deal.II/base/symmetric_tensor.h>
 #include <deal.II/base/parameter_handler.h>
 #include <deal.II/dofs/dof_handler.h>
@@ -167,9 +177,65 @@ namespace aspect
       identifies_single_variable(const Dependence dependence);
     }
 
+    /**
+    * A namespace whose enum members are used in querying which material
+    * properties should be computed.
+    */
+    namespace MaterialProperties
+    {
+      /**
+       * An enum whose members identify material model output
+       * properties.
+       *
+       * Because the values of the enum are chosen so that they represent
+       * single bits in an integer, the result here is a number that can be
+       * represented in base-2 as 110 (the number 100=4 for the density and
+       * 010=2 for the viscosity).
+       */
+      enum Property
+      {
+        uninitialized                  = 0,
 
-    template <int dim>     class AdditionalMaterialInputs;
+        none                           = 1,
+        viscosity                      = 2,
+        density                        = 4,
+        thermal_expansion_coefficient  = 8,
+        specific_heat                  = 16,
+        thermal_conductivity           = 32,
+        compressibility                = 64,
+        entropy_derivative_pressure    = 128,
+        entropy_derivative_temperature = 256,
+        reaction_terms                 = 512,
 
+        equation_of_state_properties   = density |
+                                         thermal_expansion_coefficient |
+                                         specific_heat |
+                                         compressibility |
+                                         entropy_derivative_pressure |
+                                         entropy_derivative_temperature,
+        all_properties                 = equation_of_state_properties |
+                                         viscosity |
+                                         reaction_terms
+      };
+
+      /**
+       * Provide an operator that or's two Property variables. This allows to
+       * combine more than one property in a single variable.
+       */
+      inline Property operator | (const Property d1,
+                                  const Property d2)
+      {
+        return Property(static_cast<int>(d1) | static_cast<int>(d2));
+      }
+
+      inline Property operator |= (Property &d1,
+                                   const Property d2)
+      {
+        return (d1 | d2);
+      }
+    }
+
+    template <int dim> class AdditionalMaterialInputs;
 
     /**
      * A data structure with all inputs for the
@@ -189,7 +255,7 @@ namespace aspect
        * @param n_comp The number of vector quantities (in the order in which
        * the Introspection class reports them) for which input will be
        * provided.
-       */
+      */
       MaterialModelInputs(const unsigned int n_points,
                           const unsigned int n_comp);
 
@@ -265,6 +331,19 @@ namespace aspect
                   const LinearAlgebra::BlockVector &solution_vector,
                   const bool use_strain_rates = true);
 
+      /**
+       * Function that returns the number of points at which
+       * the material model is to be evaluated.
+       */
+      unsigned int n_evaluation_points() const;
+
+      /**
+       * Function that returns if the caller requests an evaluation
+       * of the handed over @p property. This is optional, because calculating
+       * some properties can be more expensive than the other material
+       * model properties and not all are needed for all applications.
+       */
+      bool requests_property(const MaterialProperties::Property &property) const;
 
       /**
        * Vector with global positions where the material has to be evaluated
@@ -319,20 +398,6 @@ namespace aspect
       std::vector<SymmetricTensor<2,dim> > strain_rate;
 
       /**
-       * Optional reference to the cell that contains these quadrature
-       * points. This allows for evaluating properties at the cell vertices
-       * and interpolating to the quadrature points, or to query the cell for
-       * material ids, neighbors, or other information that is not available
-       * solely from the locations. Note that not all calling functions can set
-       * this reference. In these cases it will be a nullptr, so make sure
-       * that your material model either fails with a proper error message
-       * or provide an alternative calculation for these cases.
-       *
-       * @deprecated Use DoFHandler<dim>::active_cell_iterator current_cell instead.
-       */
-      const typename DoFHandler<dim>::active_cell_iterator *cell DEAL_II_DEPRECATED;
-
-      /**
        * Optional cell object that contains these quadrature
        * points. This allows for evaluating properties at the cell vertices
        * and interpolating to the quadrature points, or to query the cell for
@@ -348,6 +413,15 @@ namespace aspect
        * @endcode
        */
       typename DoFHandler<dim>::active_cell_iterator current_cell;
+
+      /**
+       * A member variable that stores which properties the material model
+       * should compute. You can check specific properties using
+       * the requests_property function and usually do not need to access
+       * this variable directly. For documentation on the internal storage
+       * of this variable see the documentation for MaterialProperties::Property.
+       */
+      MaterialProperties::Property requested_properties;
 
       /**
        * Vector of shared pointers to additional material model input
@@ -429,6 +503,11 @@ namespace aspect
        */
       MaterialModelOutputs &operator= (MaterialModelOutputs &&) = default;
 
+      /**
+      * Function that returns the number of points at which
+      * the material model is to be evaluated.
+      */
+      unsigned int n_evaluation_points() const;
 
       /**
        * Viscosity $\eta$ values at the given positions.
@@ -537,6 +616,12 @@ namespace aspect
        */
       template <class AdditionalOutputType>
       const AdditionalOutputType *get_additional_output() const;
+
+      /**
+       * Steal the additional outputs from @p other. The destination (@p
+       * this), is expected to currently have no additional outputs.
+       */
+      void move_additional_outputs_from(MaterialModelOutputs<dim> &other);
     };
 
 
@@ -590,6 +675,10 @@ namespace aspect
        * - Log average: Set the values of each output quantity at every
        * quadrature point to \f[ \bar x = {10}^{\frac 1Q \sum_{q=1}^Q \log_{10} x_q} \f]
        * where $x_q$ are the values at the $Q$ quadrature points.
+       *
+       * - Harmonic average only viscosity and project to Q1 only viscosity: Like
+       * harmonic averaging and project to Q1, but only
+       * applied to the viscosity.
        */
       enum AveragingOperation
       {
@@ -599,7 +688,9 @@ namespace aspect
         geometric_average,
         pick_largest,
         project_to_Q1,
-        log_average
+        log_average,
+        harmonic_average_only_viscosity,
+        project_to_Q1_only_viscosity
       };
 
 
@@ -747,7 +838,7 @@ namespace aspect
     {
       public:
         /**
-         * Constructor.
+         * Base constructor.
          *
          * @param output_names A list of names for the additional output variables
          *   this object will store. The length of the list also indicates
@@ -757,9 +848,22 @@ namespace aspect
         NamedAdditionalMaterialOutputs(const std::vector<std::string> &output_names);
 
         /**
+         * Constructor for case where outputs are stored for a number of points.
+         *
+         * @param output_names A list of names for the additional output variables
+         *   this object will store. The length of the list also indicates
+         *   how many additional output variables objects of derived classes
+         *   will store.
+         * @param n_points The number of points for which to store each of the
+         *   output variables.
+         */
+        NamedAdditionalMaterialOutputs(const std::vector<std::string> &output_names,
+                                       const unsigned int n_points);
+
+        /**
          * Destructor.
          */
-        virtual ~NamedAdditionalMaterialOutputs();
+        ~NamedAdditionalMaterialOutputs() override;
 
         /**
          * Return a reference to the vector of names of the additional
@@ -771,12 +875,19 @@ namespace aspect
          * Given an index as input argument, return a reference the to vector of
          * values of the additional output with that index.
          */
-        virtual std::vector<double> get_nth_output(const unsigned int idx) const = 0;
+        virtual std::vector<double> get_nth_output(const unsigned int idx) const;
 
-        virtual void average (const MaterialAveraging::AveragingOperation /*operation*/,
-                              const FullMatrix<double>  &/*projection_matrix*/,
-                              const FullMatrix<double>  &/*expansion_matrix*/)
+        void average (const MaterialAveraging::AveragingOperation /*operation*/,
+                      const FullMatrix<double>  &/*projection_matrix*/,
+                      const FullMatrix<double>  &/*expansion_matrix*/) override
         {}
+
+
+        /**
+         * Values for the outputs at a set of evaluation points
+         * output_values[i][j] is the value of output i at point j.
+         */
+        std::vector<std::vector<double> > output_values;
 
       private:
         const std::vector<std::string> names;
@@ -794,7 +905,7 @@ namespace aspect
       public:
         SeismicAdditionalOutputs(const unsigned int n_points);
 
-        virtual std::vector<double> get_nth_output(const unsigned int idx) const;
+        std::vector<double> get_nth_output(const unsigned int idx) const override;
 
         /**
          * Seismic s-wave velocities at the evaluation points passed to
@@ -829,7 +940,7 @@ namespace aspect
      *
      * In contrast to the reaction_terms, which are actual changes in composition
      * rather than reaction rates, and assume equilibrium between the compositional
-     * fields, the reacion_rates defined here allow for reaction processes that
+     * fields, the reaction_rates defined here allow for reaction processes that
      * happen on shorter time scales than the advection, and disequilibrium reactions.
      */
     template <int dim>
@@ -839,7 +950,7 @@ namespace aspect
         ReactionRateOutputs (const unsigned int n_points,
                              const unsigned int n_comp);
 
-        virtual std::vector<double> get_nth_output(const unsigned int idx) const;
+        std::vector<double> get_nth_output(const unsigned int idx) const override;
 
         /**
          * Reaction rates for all compositional fields at the evaluation points
@@ -877,7 +988,7 @@ namespace aspect
         PrescribedFieldOutputs (const unsigned int n_points,
                                 const unsigned int n_comp);
 
-        virtual std::vector<double> get_nth_output(const unsigned int idx) const;
+        std::vector<double> get_nth_output(const unsigned int idx) const override;
 
         /**
          * Prescribed field outputs for all compositional fields at the evaluation points
@@ -908,7 +1019,7 @@ namespace aspect
       public:
         PrescribedTemperatureOutputs (const unsigned int n_points);
 
-        virtual std::vector<double> get_nth_output(const unsigned int idx) const;
+        std::vector<double> get_nth_output(const unsigned int idx) const override;
 
         /**
          * Prescribed field outputs for the temperature field at the evaluation points
@@ -934,12 +1045,12 @@ namespace aspect
           : rhs_u(n_points), rhs_p(n_points), rhs_melt_pc(n_points)
         {}
 
-        virtual ~AdditionalMaterialOutputsStokesRHS()
+        ~AdditionalMaterialOutputsStokesRHS() override
         {}
 
-        virtual void average (const MaterialAveraging::AveragingOperation /*operation*/,
-                              const FullMatrix<double>  &/*projection_matrix*/,
-                              const FullMatrix<double>  &/*expansion_matrix*/)
+        void average (const MaterialAveraging::AveragingOperation /*operation*/,
+                      const FullMatrix<double>  &/*projection_matrix*/,
+                      const FullMatrix<double>  &/*expansion_matrix*/) override
         {
           // TODO: not implemented
         }
@@ -964,6 +1075,46 @@ namespace aspect
         std::vector<double> rhs_melt_pc;
     };
 
+
+
+    /**
+     * An AdditionalOutput that allows prescribing a dilation applied to the
+     * Stokes solution.
+     *
+     * This is typically used in a MaterialModel to add dilation when plastic
+     * failure occurs as motivated by ChoiPeterson2015. If this output
+     * (denoted by R below) is present and enable_prescribed_dilation==true
+     * the following terms will be assembled:
+     *
+     * 1) $\int - (R,q)$ to the conservation of mass equation, creating
+     *    $-(div u,q) = -(R,q)$.
+     * 2) $\int - 2.0 / 3.0 * eta * (R, div v)$ to the RHS of the momentum
+     *    equation (if the model is incompressible), otherwise this term is
+     *    already present on the left side.
+     */
+    template <int dim>
+    class PrescribedPlasticDilation : public NamedAdditionalMaterialOutputs<dim>
+    {
+      public:
+        /**
+         * Constructor
+         */
+        explicit PrescribedPlasticDilation (const unsigned int n_points);
+
+        /**
+         * Function for NamedAdditionalMaterialOutputs interface
+         */
+        virtual std::vector<double> get_nth_output(const unsigned int idx) const;
+
+        /**
+         * A scalar value per evaluation point that specifies the prescribed dilation
+         * in that point.
+         */
+        std::vector<double> dilation;
+    };
+
+
+
     /**
      * A class for an elastic force term to be added to the RHS of the
      * Stokes system, which can be attached to the
@@ -978,12 +1129,12 @@ namespace aspect
           : elastic_force(n_points, numbers::signaling_nan<Tensor<2,dim> >() )
         {}
 
-        virtual ~ElasticOutputs()
+        ~ElasticOutputs() override
         {}
 
-        virtual void average (const MaterialAveraging::AveragingOperation operation,
-                              const FullMatrix<double>  &/*projection_matrix*/,
-                              const FullMatrix<double>  &/*expansion_matrix*/)
+        void average (const MaterialAveraging::AveragingOperation operation,
+                      const FullMatrix<double>  &/*projection_matrix*/,
+                      const FullMatrix<double>  &/*expansion_matrix*/) override
         {
           AssertThrow(operation == MaterialAveraging::AveragingOperation::none,ExcNotImplemented());
           return;
@@ -1024,14 +1175,14 @@ namespace aspect
          * measure given that the referenced structure used to be a member of
          * the current class.
          */
-        typedef MaterialModel::MaterialModelInputs<dim> MaterialModelInputs;
+        using MaterialModelInputs = MaterialModel::MaterialModelInputs<dim>;
         /**
          * A typedef to import the MaterialModelOutputs name into the current
          * class. This typedef primarily exists as a backward compatibility
          * measure given that the referenced structure used to be a member of
          * the current class.
          */
-        typedef MaterialModel::MaterialModelOutputs<dim> MaterialModelOutputs;
+        using MaterialModelOutputs = MaterialModel::MaterialModelOutputs<dim>;
 
         /**
          * Destructor. Made virtual to enforce that derived classes also have
@@ -1332,6 +1483,14 @@ namespace aspect
             return result;
         }
       return nullptr;
+    }
+
+
+    template <int dim>
+    void MaterialModelOutputs<dim>::move_additional_outputs_from(MaterialModelOutputs<dim> &other)
+    {
+      Assert(this->additional_outputs.empty(), ExcMessage("Destination of move needs to be empty!"));
+      this->additional_outputs = std::move(other.additional_outputs);
     }
 
 

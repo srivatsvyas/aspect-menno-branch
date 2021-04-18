@@ -1,5 +1,5 @@
 /*
- Copyright (C) 2015 - 2019 by the authors of the ASPECT code.
+ Copyright (C) 2015 - 2020 by the authors of the ASPECT code.
 
  This file is part of ASPECT.
 
@@ -24,11 +24,12 @@
 #include <aspect/postprocess/geoid.h>
 #include <aspect/postprocess/dynamic_topography.h>
 #include <aspect/postprocess/boundary_densities.h>
+#include <aspect/geometry_model/spherical_shell.h>
 
 #include <deal.II/base/quadrature_lib.h>
 #include <deal.II/fe/fe_values.h>
 
-#include <aspect/geometry_model/spherical_shell.h>
+#include <aspect/citation_info.h>
 
 
 namespace aspect
@@ -80,22 +81,31 @@ namespace aspect
 
     template <int dim>
     std::pair<std::vector<double>,std::vector<double> >
-    Geoid<dim>::density_contribution (const double &outer_radius) const
+    Geoid<dim>::density_contribution (const double &/*outer_radius*/) const
+    {
+      Assert(false, ExcNotImplemented());
+      return std::make_pair(std::vector<double>(), std::vector<double>());
+
+    }
+
+    template <>
+    std::pair<std::vector<double>,std::vector<double> >
+    Geoid<3>::density_contribution (const double &outer_radius) const
     {
       const unsigned int quadrature_degree = this->introspection().polynomial_degree.temperature;
       // need to evaluate density contribution of each volume quadrature point
-      const QGauss<dim> quadrature_formula(quadrature_degree);
+      const QGauss<3> quadrature_formula(quadrature_degree);
 
-      FEValues<dim> fe_values (this->get_mapping(),
-                               this->get_fe(),
-                               quadrature_formula,
-                               update_values |
-                               update_quadrature_points |
-                               update_JxW_values |
-                               update_gradients);
+      FEValues<3> fe_values (this->get_mapping(),
+                             this->get_fe(),
+                             quadrature_formula,
+                             update_values |
+                             update_quadrature_points |
+                             update_JxW_values |
+                             update_gradients);
 
-      MaterialModel::MaterialModelInputs<dim> in(fe_values.n_quadrature_points, this->n_compositional_fields());
-      MaterialModel::MaterialModelOutputs<dim> out(fe_values.n_quadrature_points, this->n_compositional_fields());
+      MaterialModel::MaterialModelInputs<3> in(fe_values.n_quadrature_points, this->n_compositional_fields());
+      MaterialModel::MaterialModelOutputs<3> out(fe_values.n_quadrature_points, this->n_compositional_fields());
 
       std::vector<std::vector<double> > composition_values (this->n_compositional_fields(),std::vector<double> (quadrature_formula.size()));
 
@@ -112,11 +122,7 @@ namespace aspect
               double integrated_density_sin_component = 0;
 
               // loop over all of the cells
-              typename DoFHandler<dim>::active_cell_iterator
-              cell = this->get_dof_handler().begin_active(),
-              endc = this->get_dof_handler().end();
-
-              for (; cell!=endc; ++cell)
+              for (const auto &cell : this->get_dof_handler().active_cell_iterators())
                 if (cell->is_locally_owned())
                   {
                     fe_values.reinit (cell);
@@ -130,7 +136,7 @@ namespace aspect
                     for (unsigned int q=0; q<quadrature_formula.size(); ++q)
                       {
                         // convert coordinates from [x,y,z] to [r, phi, theta]
-                        const std::array<double,dim> scoord = aspect::Utilities::Coordinates::cartesian_to_spherical_coordinates(in.position[q]);
+                        const std::array<double,3> scoord = aspect::Utilities::Coordinates::cartesian_to_spherical_coordinates(in.position[q]);
 
                         // normalization after Dahlen and Tromp, 1986, Appendix B.6
                         const std::pair<double,double> sph_harm_vals = aspect::Utilities::real_spherical_harmonic(ideg,iord,scoord[2],scoord[1]);
@@ -157,154 +163,156 @@ namespace aspect
 
     template <int dim>
     std::pair<std::pair<double, std::pair<std::vector<double>,std::vector<double> > >, std::pair<double, std::pair<std::vector<double>,std::vector<double> > > >
-    Geoid<dim>::dynamic_topography_contribution(const double &outer_radius,
-                                                const double &inner_radius) const
+    Geoid<dim>::dynamic_topography_contribution(const double &/*outer_radius*/,
+                                                const double &/*inner_radius*/) const
+    {
+      Assert(false, ExcNotImplemented());
+      std::pair<double, std::pair<std::vector<double>,std::vector<double> > > temp;
+      return std::make_pair(temp, temp);
+    }
+
+    template <>
+    std::pair<std::pair<double, std::pair<std::vector<double>,std::vector<double> > >, std::pair<double, std::pair<std::vector<double>,std::vector<double> > > >
+    Geoid<3>::dynamic_topography_contribution(const double &outer_radius,
+                                              const double &inner_radius) const
     {
       // Get a pointer to the dynamic topography postprocessor.
-      const Postprocess::DynamicTopography<dim> &dynamic_topography =
-        this->get_postprocess_manager().template get_matching_postprocessor<Postprocess::DynamicTopography<dim> >();
+      const Postprocess::DynamicTopography<3> &dynamic_topography =
+        this->get_postprocess_manager().template get_matching_postprocessor<Postprocess::DynamicTopography<3> >();
 
       // Get the already-computed dynamic topography solution.
       const LinearAlgebra::BlockVector &topo_vector = dynamic_topography.topography_vector();
 
       // Get a pointer to the boundary densities postprocessor.
-      const Postprocess::BoundaryDensities<dim> &boundary_densities =
-        this->get_postprocess_manager().template get_matching_postprocessor<Postprocess::BoundaryDensities<dim> >();
+      const Postprocess::BoundaryDensities<3> &boundary_densities =
+        this->get_postprocess_manager().template get_matching_postprocessor<Postprocess::BoundaryDensities<3> >();
 
       const double top_layer_average_density = boundary_densities.density_at_top();
       const double bottom_layer_average_density = boundary_densities.density_at_bottom();
 
 
       const unsigned int quadrature_degree = this->introspection().polynomial_degree.temperature;
-      const QGauss<dim-1> quadrature_formula_face(quadrature_degree); // need to grab the infinitesimal area of each quadrature points on every boundary face here
+      const QGauss<2> quadrature_formula_face(quadrature_degree); // need to grab the infinitesimal area of each quadrature points on every boundary face here
 
-      FEFaceValues<dim> fe_face_values (this->get_mapping(),
-                                        this->get_fe(),
-                                        quadrature_formula_face,
-                                        update_values |
-                                        update_quadrature_points |
-                                        update_JxW_values);
+      FEFaceValues<3> fe_face_values (this->get_mapping(),
+                                      this->get_fe(),
+                                      quadrature_formula_face,
+                                      update_values |
+                                      update_quadrature_points |
+                                      update_JxW_values);
 
       std::vector<double> topo_values( quadrature_formula_face.size());
 
       // vectors to store the location, infinitesimal area, and dynamic topography associated with each quadrature point of each surface and bottom cell respectively.
-      std::vector<std::pair<Point<dim>,std::pair<double,double> > > surface_stored_values;
-      std::vector<std::pair<Point<dim>,std::pair<double,double> > > CMB_stored_values;
+      std::vector<std::pair<Point<3>,std::pair<double,double> > > surface_stored_values;
+      std::vector<std::pair<Point<3>,std::pair<double,double> > > CMB_stored_values;
 
       // loop over all of the boundary cells and if one is at
       // surface or CMB, evaluate the dynamic topography vector there.
-      typename DoFHandler<dim>::active_cell_iterator
-      cell = this->get_dof_handler().begin_active(),
-      endc = this->get_dof_handler().end();
-
-      for (; cell!=endc; ++cell)
-        if (cell->is_locally_owned())
-          if (cell->at_boundary())
+      for (const auto &cell : this->get_dof_handler().active_cell_iterators())
+        if (cell->is_locally_owned() && cell->at_boundary())
+          {
+            // see if the cell is at the *top* boundary or CMB, not just any boundary
+            unsigned int face_idx = numbers::invalid_unsigned_int;
+            bool at_upper_surface = false;
             {
-              // see if the cell is at the *top* boundary or CMB, not just any boundary
-              unsigned int face_idx = numbers::invalid_unsigned_int;
-              bool at_upper_surface = false;
-              {
-                for (unsigned int f=0; f<GeometryInfo<dim>::faces_per_cell; ++f)
-                  {
-                    if (cell->at_boundary(f) && this->get_geometry_model().depth (cell->face(f)->center()) < cell->face(f)->minimum_vertex_distance()/3)
-                      {
-                        // if the cell is at the top boundary, assign face_idx.
-                        face_idx = f;
-                        at_upper_surface = true;
-                        break;
-                      }
-                    else if (cell->at_boundary(f) && this->get_geometry_model().depth (cell->face(f)->center())
-                             > (this->get_geometry_model().maximal_depth() - cell->face(f)->minimum_vertex_distance()/3.))
-                      {
-                        // if the cell is at the bottom boundary, assign face_idx.
-                        face_idx = f;
-                        at_upper_surface = false;
-                        break;
-                      }
-                    else
-                      continue;
-                  }
-
-                // if the cell is not at the boundary, keep the search loop
-                if (face_idx == numbers::invalid_unsigned_int)
-                  continue;
-              }
-
-              // focus on the boundary cell's upper face if on the top boundary and lower face if on the bottom boundary
-              fe_face_values.reinit(cell, face_idx);
-
-              // Dynamic topography is evaluated at each quadrature
-              // point on every top/bottom cell's boundary face.  The
-              // reason to do this -- as opposed to using a single
-              // value per boundary face -- is that later in the
-              // spherical harmonic expansion, we will calculate
-              // sin(theta)*d_theta*d_phi by
-              // infinitesimal_area/radius^2. The accuracy of this
-              // transfer gets better as infinitesimal_area gets
-              // closer to zero, so using every boundary quadrature
-              // point's associated area (in the form of
-              // FEFaceValues::JxW) will lead to better accuracy in
-              // spherical harmonic expansion compared to using just
-              // one average value per face, especially in the coarse
-              // meshes.
-              fe_face_values[this->introspection().extractors.temperature].get_function_values(topo_vector, topo_values);
-
-              // if the cell at top boundary, add its contributions dynamic topography storage vector
-              if (face_idx != numbers::invalid_unsigned_int && at_upper_surface)
+              for (unsigned int f=0; f<GeometryInfo<3>::faces_per_cell; ++f)
                 {
-                  for (unsigned int q=0; q<fe_face_values.n_quadrature_points; ++q)
-                    surface_stored_values.push_back (std::make_pair(fe_face_values.quadrature_point(q), std::make_pair(fe_face_values.JxW(q), topo_values[q])));
+                  if (cell->at_boundary(f) && this->get_geometry_model().depth (cell->face(f)->center()) < cell->face(f)->minimum_vertex_distance()/3)
+                    {
+                      // if the cell is at the top boundary, assign face_idx.
+                      face_idx = f;
+                      at_upper_surface = true;
+                      break;
+                    }
+                  else if (cell->at_boundary(f) && this->get_geometry_model().depth (cell->face(f)->center())
+                           > (this->get_geometry_model().maximal_depth() - cell->face(f)->minimum_vertex_distance()/3.))
+                    {
+                      // if the cell is at the bottom boundary, assign face_idx.
+                      face_idx = f;
+                      at_upper_surface = false;
+                      break;
+                    }
+                  else
+                    continue;
                 }
 
-              // if the cell at bottom boundary, add its contributions dynamic topography storage vector
-              if (face_idx != numbers::invalid_unsigned_int && !at_upper_surface)
-                {
-                  for (unsigned int q=0; q<fe_face_values.n_quadrature_points; ++q)
-                    CMB_stored_values.push_back (std::make_pair(fe_face_values.quadrature_point(q), std::make_pair(fe_face_values.JxW(q), topo_values[q])));
-                }
+              // if the cell is not at the boundary, keep the search loop
+              if (face_idx == numbers::invalid_unsigned_int)
+                continue;
             }
 
-      // Subtract the average dynamic topography.
-      // Transfer the geocentric coordinates to the spherical coordinates.
-      // Prepare the value of spherical infinitesimal, i.e., sin(theta)*d_theta*d_phi, for the later spherical harmonic expansion.
-      std::vector<std::vector<double> > surface_topo_spherical_function; // store theta, phi, spherical infinitesimal, and surface dynamic topography
-      std::vector<std::vector<double> > CMB_topo_spherical_function; // store theta, phi, spherical infinitesimal, and CMB dynamic topography
+            // focus on the boundary cell's upper face if on the top boundary and lower face if on the bottom boundary
+            fe_face_values.reinit(cell, face_idx);
+
+            // Dynamic topography is evaluated at each quadrature
+            // point on every top/bottom cell's boundary face.  The
+            // reason to do this -- as opposed to using a single
+            // value per boundary face -- is that later in the
+            // spherical harmonic expansion, we will calculate
+            // sin(theta)*d_theta*d_phi by
+            // infinitesimal_area/radius^2. The accuracy of this
+            // transfer gets better as infinitesimal_area gets
+            // closer to zero, so using every boundary quadrature
+            // point's associated area (in the form of
+            // FEFaceValues::JxW) will lead to better accuracy in
+            // spherical harmonic expansion compared to using just
+            // one average value per face, especially in the coarse
+            // meshes.
+            fe_face_values[this->introspection().extractors.temperature].get_function_values(topo_vector, topo_values);
+
+            // if the cell at top boundary, add its contributions dynamic topography storage vector
+            if (face_idx != numbers::invalid_unsigned_int && at_upper_surface)
+              {
+                for (unsigned int q=0; q<fe_face_values.n_quadrature_points; ++q)
+                  surface_stored_values.emplace_back (fe_face_values.quadrature_point(q), std::make_pair(fe_face_values.JxW(q), topo_values[q]));
+              }
+
+            // if the cell at bottom boundary, add its contributions dynamic topography storage vector
+            if (face_idx != numbers::invalid_unsigned_int && !at_upper_surface)
+              {
+                for (unsigned int q=0; q<fe_face_values.n_quadrature_points; ++q)
+                  CMB_stored_values.emplace_back (fe_face_values.quadrature_point(q), std::make_pair(fe_face_values.JxW(q), topo_values[q]));
+              }
+          }
+
+      std::vector<std::vector<double> > surface_topo_spherical_function;
+      std::vector<std::vector<double> > CMB_topo_spherical_function;
+
       for (unsigned int i=0; i<surface_stored_values.size(); ++i)
         {
-          const std::array<double,dim> scoord = aspect::Utilities::Coordinates::cartesian_to_spherical_coordinates(surface_stored_values.at(i).first);
-          const double theta = scoord[2];
-          const double phi = scoord[1];
+          const std::array<double,3> scoord = aspect::Utilities::Coordinates::cartesian_to_spherical_coordinates(surface_stored_values[i].first);
+
           // calculate spherical infinitesimal sin(theta)*d_theta*d_phi by infinitesimal_area/radius^2
-          const double infinitesimal = surface_stored_values.at(i).second.first/(outer_radius*outer_radius);
-          // assign the spherical function containing theta, phi, spherical infinitesimal, and surface dynamic topography
-          std::vector<double> tmp;
-          tmp.push_back(theta);
-          tmp.push_back(phi);
-          tmp.push_back(infinitesimal);
-          tmp.push_back(surface_stored_values.at(i).second.second);
-          surface_topo_spherical_function.push_back(tmp);
-        }
-      for (unsigned int i=0; i<CMB_stored_values.size(); ++i)
-        {
-          const std::array<double,dim> scoord = aspect::Utilities::Coordinates::cartesian_to_spherical_coordinates(CMB_stored_values.at(i).first);
-          const double theta = scoord[2];
-          const double phi = scoord[1];
-          // calculate spherical infinitesimal sin(theta)*d_theta*d_phi by infinitesimal_area/radius^2
-          const double infinitesimal = CMB_stored_values.at(i).second.first/(inner_radius*inner_radius);
-          // assign the spherical function containing theta, phi, spherical infinitesimal, and CMB dynamic topography
-          std::vector<double> tmp;
-          tmp.push_back(theta);
-          tmp.push_back(phi);
-          tmp.push_back(infinitesimal);
-          tmp.push_back(CMB_stored_values.at(i).second.second);
-          CMB_topo_spherical_function.push_back(tmp);
+          const double infinitesimal = surface_stored_values[i].second.first/(outer_radius*outer_radius);
+
+          // theta, phi, spherical infinitesimal, and surface dynamic topography
+          surface_topo_spherical_function.emplace_back(std::vector<double> {scoord[2],
+                                                                            scoord[1],
+                                                                            infinitesimal,
+                                                                            surface_stored_values[i].second.second
+                                                                           });
         }
 
-      std::pair<double, std::pair<std::vector<double>,std::vector<double> > > SH_surface_dyna_topo_coes;
-      SH_surface_dyna_topo_coes = std::make_pair(top_layer_average_density,to_spherical_harmonic_coefficients(surface_topo_spherical_function));
-      std::pair<double, std::pair<std::vector<double>,std::vector<double> > > SH_CMB_dyna_topo_coes;
-      SH_CMB_dyna_topo_coes = std::make_pair(bottom_layer_average_density,to_spherical_harmonic_coefficients(CMB_topo_spherical_function));
+      for (unsigned int i=0; i<CMB_stored_values.size(); ++i)
+        {
+          const std::array<double,3> scoord = aspect::Utilities::Coordinates::cartesian_to_spherical_coordinates(CMB_stored_values[i].first);
+
+          // calculate spherical infinitesimal sin(theta)*d_theta*d_phi by infinitesimal_area/radius^2
+          const double infinitesimal = CMB_stored_values[i].second.first/(inner_radius*inner_radius);
+
+          // theta, phi, spherical infinitesimal, and CMB dynamic topography
+          CMB_topo_spherical_function.emplace_back(std::vector<double> {scoord[2],
+                                                                        scoord[1],
+                                                                        infinitesimal,
+                                                                        CMB_stored_values[i].second.second
+                                                                       });
+        }
+
+      std::pair<double, std::pair<std::vector<double>,std::vector<double> > > SH_surface_dyna_topo_coes
+        = std::make_pair(top_layer_average_density,to_spherical_harmonic_coefficients(surface_topo_spherical_function));
+      std::pair<double, std::pair<std::vector<double>,std::vector<double> > > SH_CMB_dyna_topo_coes
+        = std::make_pair(bottom_layer_average_density,to_spherical_harmonic_coefficients(CMB_topo_spherical_function));
       return std::make_pair(SH_surface_dyna_topo_coes,SH_CMB_dyna_topo_coes);
     }
 
@@ -313,16 +321,17 @@ namespace aspect
     Geoid<dim>::execute (TableHandler &)
     {
       // Current geoid code only works for spherical shell geometry
-      const GeometryModel::SphericalShell<dim> *geometry_model = dynamic_cast<const GeometryModel::SphericalShell<dim> *>
-                                                                 (&this->get_geometry_model());
-      AssertThrow (geometry_model != nullptr && dim == 3,
+      AssertThrow (Plugins::plugin_type_matches<const GeometryModel::SphericalShell<dim>>(this->get_geometry_model())
+                   &&
+                   dim == 3,
                    ExcMessage("The geoid postprocessor is currently only implemented for the 3D spherical shell geometry model."));
 
+      const GeometryModel::SphericalShell<dim> &geometry_model =
+        Plugins::get_plugin_as_type<const GeometryModel::SphericalShell<dim>> (this->get_geometry_model());
+
       // Get the value of the outer radius and inner radius
-      const double outer_radius = dynamic_cast<const GeometryModel::SphericalShell<dim>&>
-                                  (this->get_geometry_model()).outer_radius();
-      const double inner_radius = dynamic_cast<const GeometryModel::SphericalShell<dim>&>
-                                  (this->get_geometry_model()).inner_radius();
+      const double outer_radius = geometry_model.outer_radius();
+      const double inner_radius = geometry_model.inner_radius();
 
       // Get the value of the surface gravity acceleration from the gravity model
       Point<dim> surface_point;
@@ -335,15 +344,25 @@ namespace aspect
       // Get the spherical harmonic coefficients of the density contribution.
       std::pair<std::vector<double>,std::vector<double> > SH_density_coes = density_contribution(outer_radius);
 
-      // Get the spherical harmonic coefficients of the surface and CMB dynamic topography
-      std::pair<std::pair<double, std::pair<std::vector<double>,std::vector<double> > >, std::pair<double, std::pair<std::vector<double>,std::vector<double> > > > SH_dyna_topo_coes;
-      SH_dyna_topo_coes = dynamic_topography_contribution(outer_radius,inner_radius);
-      std::pair<double, std::pair<std::vector<double>,std::vector<double> > > SH_surface_dyna_topo_coes = SH_dyna_topo_coes.first;
-      std::pair<double, std::pair<std::vector<double>,std::vector<double> > > SH_CMB_dyna_topo_coes = SH_dyna_topo_coes.second;
+      std::pair<double, std::pair<std::vector<double>,std::vector<double> > > SH_surface_dyna_topo_coes;
+      std::pair<double, std::pair<std::vector<double>,std::vector<double> > > SH_CMB_dyna_topo_coes;
+      // Initialize the surface and CMB density contrasts with NaNs because they may be unused in case of no dynamic topography contribution.
+      double surface_delta_rho = numbers::signaling_nan<double>();
+      double CMB_delta_rho = numbers::signaling_nan<double>();
+      if (include_dynamic_topo_contribution == true)
+        {
+          // Get the spherical harmonic coefficients of the surface and CMB dynamic topography
+          std::pair<std::pair<double, std::pair<std::vector<double>,std::vector<double> > >, std::pair<double, std::pair<std::vector<double>,std::vector<double> > > > SH_dyna_topo_coes;
+          SH_dyna_topo_coes = dynamic_topography_contribution(outer_radius,inner_radius);
+          SH_surface_dyna_topo_coes = SH_dyna_topo_coes.first;
+          SH_CMB_dyna_topo_coes = SH_dyna_topo_coes.second;
 
-      // Get the density contrast at the surface and CMB
-      const double surface_delta_rho =  SH_surface_dyna_topo_coes.first - density_above;
-      const double CMB_delta_rho = density_below - SH_CMB_dyna_topo_coes.first;
+          // Get the density contrast at the surface and CMB to replace the initialized NaN values.
+          // The surface and CMB density contrasts will be used later to calculate geoid,
+          // and in spherical harmonic output of the CMB dynamic topography contribution to geoid.
+          surface_delta_rho =  SH_surface_dyna_topo_coes.first - density_above;
+          CMB_delta_rho = density_below - SH_CMB_dyna_topo_coes.first;
+        }
 
       // Compute the spherical harmonic coefficients of geoid anomaly
       std::vector<double> density_anomaly_contribution_coecos; // a vector to store cos terms of density anomaly contribution SH coefficients
@@ -366,19 +385,22 @@ namespace aspect
               density_anomaly_contribution_coecos.push_back(coecos_density_anomaly);
               density_anomaly_contribution_coesin.push_back(coesin_density_anomaly);
 
-              double coecos_surface_dyna_topo = (4 * numbers::PI * G / (surface_gravity * (2 * ideg + 1)))
-                                                * surface_delta_rho*SH_surface_dyna_topo_coes.second.first.at(ind)*outer_radius;
-              double coesin_surface_dyna_topo = (4 * numbers::PI * G / (surface_gravity * (2 * ideg + 1)))
-                                                * surface_delta_rho*SH_surface_dyna_topo_coes.second.second.at(ind)*outer_radius;
-              surface_dyna_topo_contribution_coecos.push_back(coecos_surface_dyna_topo);
-              surface_dyna_topo_contribution_coesin.push_back(coesin_surface_dyna_topo);
+              if (include_dynamic_topo_contribution == true)
+                {
+                  double coecos_surface_dyna_topo = (4 * numbers::PI * G / (surface_gravity * (2 * ideg + 1)))
+                                                    * surface_delta_rho*SH_surface_dyna_topo_coes.second.first.at(ind)*outer_radius;
+                  double coesin_surface_dyna_topo = (4 * numbers::PI * G / (surface_gravity * (2 * ideg + 1)))
+                                                    * surface_delta_rho*SH_surface_dyna_topo_coes.second.second.at(ind)*outer_radius;
+                  surface_dyna_topo_contribution_coecos.push_back(coecos_surface_dyna_topo);
+                  surface_dyna_topo_contribution_coesin.push_back(coesin_surface_dyna_topo);
 
-              double coecos_CMB_dyna_topo = (4 * numbers::PI * G / (surface_gravity * (2 * ideg + 1)))
-                                            * CMB_delta_rho*SH_CMB_dyna_topo_coes.second.first.at(ind)*inner_radius*std::pow(inner_radius/outer_radius,ideg+1);
-              double coesin_CMB_dyna_topo = (4 * numbers::PI * G / (surface_gravity * (2 * ideg + 1)))
-                                            * CMB_delta_rho*SH_CMB_dyna_topo_coes.second.second.at(ind)*inner_radius*std::pow(inner_radius/outer_radius,ideg+1);
-              CMB_dyna_topo_contribution_coecos.push_back(coecos_CMB_dyna_topo);
-              CMB_dyna_topo_contribution_coesin.push_back(coesin_CMB_dyna_topo);
+                  double coecos_CMB_dyna_topo = (4 * numbers::PI * G / (surface_gravity * (2 * ideg + 1)))
+                                                * CMB_delta_rho*SH_CMB_dyna_topo_coes.second.first.at(ind)*inner_radius*std::pow(inner_radius/outer_radius,ideg+1);
+                  double coesin_CMB_dyna_topo = (4 * numbers::PI * G / (surface_gravity * (2 * ideg + 1)))
+                                                * CMB_delta_rho*SH_CMB_dyna_topo_coes.second.second.at(ind)*inner_radius*std::pow(inner_radius/outer_radius,ideg+1);
+                  CMB_dyna_topo_contribution_coecos.push_back(coecos_CMB_dyna_topo);
+                  CMB_dyna_topo_contribution_coesin.push_back(coesin_CMB_dyna_topo);
+                }
 
               ++ind;
             }
@@ -390,8 +412,17 @@ namespace aspect
         {
           for (unsigned int iord = 0; iord < ideg+1; iord++)
             {
-              geoid_coecos.push_back(density_anomaly_contribution_coecos.at(ind)+surface_dyna_topo_contribution_coecos.at(ind)+CMB_dyna_topo_contribution_coecos.at(ind));
-              geoid_coesin.push_back(density_anomaly_contribution_coesin.at(ind)+surface_dyna_topo_contribution_coesin.at(ind)+CMB_dyna_topo_contribution_coesin.at(ind));
+              if (include_dynamic_topo_contribution == true)
+                {
+                  geoid_coecos.push_back(density_anomaly_contribution_coecos.at(ind)+surface_dyna_topo_contribution_coecos.at(ind)+CMB_dyna_topo_contribution_coecos.at(ind));
+                  geoid_coesin.push_back(density_anomaly_contribution_coesin.at(ind)+surface_dyna_topo_contribution_coesin.at(ind)+CMB_dyna_topo_contribution_coesin.at(ind));
+                }
+              else
+                {
+                  geoid_coecos.push_back(density_anomaly_contribution_coecos.at(ind));
+                  geoid_coesin.push_back(density_anomaly_contribution_coesin.at(ind));
+                }
+
               ind += 1;
             }
         }
@@ -409,24 +440,19 @@ namespace aspect
       std::vector<Point<dim> > surface_cell_locations;
 
       // loop over all the cells to get the locations of the surface cells to prepare for the geoid computation.
-      typename DoFHandler<dim>::active_cell_iterator
-      cell = this->get_dof_handler().begin_active(),
-      endc = this->get_dof_handler().end();
-
-      for (; cell!=endc; ++cell)
-        if (cell->is_locally_owned())
-          if (cell->at_boundary())
-            {
-              // if the cell is at the *top* boundary, store the cell's upper face midpoint location
-              for (unsigned int f=0; f<GeometryInfo<dim>::faces_per_cell; ++f)
-                if (cell->at_boundary(f) && this->get_geometry_model().depth (cell->face(f)->center()) < cell->face(f)->minimum_vertex_distance()/3.)
-                  {
-                    fe_face_center_values.reinit(cell,f);
-                    const Point<dim> midpoint_at_top_face = fe_face_center_values.get_quadrature_points().at(0);
-                    surface_cell_locations.push_back(midpoint_at_top_face);
-                    break;
-                  }
-            }
+      for (const auto &cell : this->get_dof_handler().active_cell_iterators())
+        if (cell->is_locally_owned() && cell->at_boundary())
+          {
+            // if the cell is at the *top* boundary, store the cell's upper face midpoint location
+            for (unsigned int f=0; f<GeometryInfo<dim>::faces_per_cell; ++f)
+              if (cell->at_boundary(f) && this->get_geometry_model().depth (cell->face(f)->center()) < cell->face(f)->minimum_vertex_distance()/3.)
+                {
+                  fe_face_center_values.reinit(cell,f);
+                  const Point<dim> midpoint_at_top_face = fe_face_center_values.get_quadrature_points().at(0);
+                  surface_cell_locations.push_back(midpoint_at_top_face);
+                  break;
+                }
+          }
 
       // Transfer the geocentric coordinates of the surface cells to the surface spherical coordinates(theta,phi)
       std::vector<std::pair<double,double> > surface_cell_spherical_coordinates;
@@ -503,97 +529,100 @@ namespace aspect
             }
         }
 
-      // The user can get the spherical harmonic coefficients of the surface dynamic topography contribution if needed
-      if (also_output_surface_dynamic_topo_contribution_SH_coes == true)
+      if (include_dynamic_topo_contribution == true)
         {
-          // have a stream into which we write the SH coefficients data from surface dynamic topography contribution.
-          // The text stream is then later sent to processor 0
-          std::ostringstream output_surface_dynamic_topo_contribution_SH_coes;
-
-          // Prepare the output SH coefficients data from surface dynamic topography contribution.
-          unsigned int SH_coes_ind = 0;
-          for (unsigned int ideg =  min_degree; ideg < max_degree+1; ideg++)
+          // The user can get the spherical harmonic coefficients of the surface dynamic topography contribution if needed
+          if (also_output_surface_dynamic_topo_contribution_SH_coes == true)
             {
-              for (unsigned int iord = 0; iord < ideg+1; iord++)
+              // have a stream into which we write the SH coefficients data from surface dynamic topography contribution.
+              // The text stream is then later sent to processor 0
+              std::ostringstream output_surface_dynamic_topo_contribution_SH_coes;
+
+              // Prepare the output SH coefficients data from surface dynamic topography contribution.
+              unsigned int SH_coes_ind = 0;
+              for (unsigned int ideg =  min_degree; ideg < max_degree+1; ideg++)
                 {
-                  output_surface_dynamic_topo_contribution_SH_coes << ideg
+                  for (unsigned int iord = 0; iord < ideg+1; iord++)
+                    {
+                      output_surface_dynamic_topo_contribution_SH_coes << ideg
+                                                                       << ' '
+                                                                       << iord
+                                                                       << ' '
+                                                                       << surface_dyna_topo_contribution_coecos.at(SH_coes_ind)
+                                                                       << ' '
+                                                                       << surface_dyna_topo_contribution_coesin.at(SH_coes_ind)
+                                                                       << std::endl;
+                      ++SH_coes_ind;
+                    }
+                }
+
+              const std::string surface_dynamic_topo_contribution_SH_coes_filename = this->get_output_directory() +
+                                                                                     "surface_dynamic_topography_contribution_SH_coefficients." +
+                                                                                     dealii::Utilities::int_to_string(this->get_timestep_number(), 5);
+
+              // Because each processor already held all the SH coefficients from surface dynamic topography contribution, we only need to stop by the processor 0
+              // to get the data. On processor 0, collect all the data and put them into the output surface dynamic topography contribution SH coefficients file.
+              if (dealii::Utilities::MPI::this_mpi_process(this->get_mpi_communicator()) == 0)
+                {
+                  std::ofstream surface_dynamic_topo_contribution_SH_coes_file (surface_dynamic_topo_contribution_SH_coes_filename.c_str());
+                  surface_dynamic_topo_contribution_SH_coes_file << "# "
+                                                                 << "degree order cosine_coefficient sine_coefficient"
+                                                                 << std::endl;
+                  std::ostringstream output_surface_delta_rho;
+                  output_surface_delta_rho << surface_delta_rho;
+                  surface_dynamic_topo_contribution_SH_coes_file << "surface density contrast(kg/m^3): "
+                                                                 << output_surface_delta_rho.str()
+                                                                 << std::endl;
+                  // write out the data on processor 0
+                  surface_dynamic_topo_contribution_SH_coes_file << output_surface_dynamic_topo_contribution_SH_coes.str();
+                }
+            }
+
+          // The user can get the spherical harmonic coefficients of the CMB dynamic topography contribution if needed
+          if (also_output_CMB_dynamic_topo_contribution_SH_coes == true)
+            {
+              // have a stream into which we write the SH coefficients data from CMB dynamic topography contribution.
+              // The text stream is then later sent to processor 0
+              std::ostringstream output_CMB_dynamic_topo_contribution_SH_coes;
+
+              // Prepare the output SH coefficients data from CMB dynamic topography contribution.
+              unsigned int SH_coes_ind = 0;
+              for (unsigned int ideg =  min_degree; ideg < max_degree+1; ideg++)
+                {
+                  for (unsigned int iord = 0; iord < ideg+1; iord++)
+                    {
+                      output_CMB_dynamic_topo_contribution_SH_coes << ideg
                                                                    << ' '
                                                                    << iord
                                                                    << ' '
-                                                                   << surface_dyna_topo_contribution_coecos.at(SH_coes_ind)
+                                                                   << CMB_dyna_topo_contribution_coecos.at(SH_coes_ind)
                                                                    << ' '
-                                                                   << surface_dyna_topo_contribution_coesin.at(SH_coes_ind)
+                                                                   << CMB_dyna_topo_contribution_coesin.at(SH_coes_ind)
                                                                    << std::endl;
-                  ++SH_coes_ind;
+                      ++SH_coes_ind;
+                    }
                 }
-            }
 
-          const std::string surface_dynamic_topo_contribution_SH_coes_filename = this->get_output_directory() +
-                                                                                 "surface_dynamic_topography_contribution_SH_coefficients." +
+              const std::string CMB_dynamic_topo_contribution_SH_coes_filename = this->get_output_directory() +
+                                                                                 "CMB_dynamic_topography_contribution_SH_coefficients." +
                                                                                  dealii::Utilities::int_to_string(this->get_timestep_number(), 5);
 
-          // Because each processor already held all the SH coefficients from surface dynamic topography contribution, we only need to stop by the processor 0
-          // to get the data. On processor 0, collect all the data and put them into the output surface dynamic topography contribution SH coefficients file.
-          if (dealii::Utilities::MPI::this_mpi_process(this->get_mpi_communicator()) == 0)
-            {
-              std::ofstream surface_dynamic_topo_contribution_SH_coes_file (surface_dynamic_topo_contribution_SH_coes_filename.c_str());
-              surface_dynamic_topo_contribution_SH_coes_file << "# "
+              // Because each processor already held all the SH coefficients from CMB dynamic topography contribution, we only need to stop by the processor 0
+              // to get the data. On processor 0, collect all the data and put them into the output CMB dynamic topography contribution SH coefficients file.
+              if (dealii::Utilities::MPI::this_mpi_process(this->get_mpi_communicator()) == 0)
+                {
+                  std::ofstream CMB_dynamic_topo_contribution_SH_coes_file (CMB_dynamic_topo_contribution_SH_coes_filename.c_str());
+                  CMB_dynamic_topo_contribution_SH_coes_file << "# "
                                                              << "degree order cosine_coefficient sine_coefficient"
                                                              << std::endl;
-              std::ostringstream output_surface_delta_rho;
-              output_surface_delta_rho << surface_delta_rho;
-              surface_dynamic_topo_contribution_SH_coes_file << "surface density contrast(kg/m^3): "
-                                                             << output_surface_delta_rho.str()
+                  std::ostringstream output_CMB_delta_rho;
+                  output_CMB_delta_rho << CMB_delta_rho;
+                  CMB_dynamic_topo_contribution_SH_coes_file << "CMB density contrast(kg/m^3): "
+                                                             << output_CMB_delta_rho.str()
                                                              << std::endl;
-              // write out the data on processor 0
-              surface_dynamic_topo_contribution_SH_coes_file << output_surface_dynamic_topo_contribution_SH_coes.str();
-            }
-        }
-
-      // The user can get the spherical harmonic coefficients of the CMB dynamic topography contribution if needed
-      if (also_output_CMB_dynamic_topo_contribution_SH_coes == true)
-        {
-          // have a stream into which we write the SH coefficients data from CMB dynamic topography contribution.
-          // The text stream is then later sent to processor 0
-          std::ostringstream output_CMB_dynamic_topo_contribution_SH_coes;
-
-          // Prepare the output SH coefficients data from CMB dynamic topography contribution.
-          unsigned int SH_coes_ind = 0;
-          for (unsigned int ideg =  min_degree; ideg < max_degree+1; ideg++)
-            {
-              for (unsigned int iord = 0; iord < ideg+1; iord++)
-                {
-                  output_CMB_dynamic_topo_contribution_SH_coes << ideg
-                                                               << ' '
-                                                               << iord
-                                                               << ' '
-                                                               << CMB_dyna_topo_contribution_coecos.at(SH_coes_ind)
-                                                               << ' '
-                                                               << CMB_dyna_topo_contribution_coesin.at(SH_coes_ind)
-                                                               << std::endl;
-                  ++SH_coes_ind;
+                  // write out the data on processor 0
+                  CMB_dynamic_topo_contribution_SH_coes_file << output_CMB_dynamic_topo_contribution_SH_coes.str();
                 }
-            }
-
-          const std::string CMB_dynamic_topo_contribution_SH_coes_filename = this->get_output_directory() +
-                                                                             "CMB_dynamic_topography_contribution_SH_coefficients." +
-                                                                             dealii::Utilities::int_to_string(this->get_timestep_number(), 5);
-
-          // Because each processor already held all the SH coefficients from CMB dynamic topography contribution, we only need to stop by the processor 0
-          // to get the data. On processor 0, collect all the data and put them into the output CMB dynamic topography contribution SH coefficients file.
-          if (dealii::Utilities::MPI::this_mpi_process(this->get_mpi_communicator()) == 0)
-            {
-              std::ofstream CMB_dynamic_topo_contribution_SH_coes_file (CMB_dynamic_topo_contribution_SH_coes_filename.c_str());
-              CMB_dynamic_topo_contribution_SH_coes_file << "# "
-                                                         << "degree order cosine_coefficient sine_coefficient"
-                                                         << std::endl;
-              std::ostringstream output_CMB_delta_rho;
-              output_CMB_delta_rho << CMB_delta_rho;
-              CMB_dynamic_topo_contribution_SH_coes_file << "CMB density contrast(kg/m^3): "
-                                                         << output_CMB_delta_rho.str()
-                                                         << std::endl;
-              // write out the data on processor 0
-              CMB_dynamic_topo_contribution_SH_coes_file << output_CMB_dynamic_topo_contribution_SH_coes.str();
             }
         }
 
@@ -712,8 +741,9 @@ namespace aspect
               // determined the maximal message length, we use this feature here
               // rather than trying to find out the exact message length with
               // a call to MPI_Probe.
-              MPI_Recv (&tmp[0], max_data_length, MPI_CHAR, p, mpi_tag,
-                        this->get_mpi_communicator(), &status);
+              const int ierr = MPI_Recv (&tmp[0], max_data_length, MPI_CHAR, p, mpi_tag,
+                                         this->get_mpi_communicator(), &status);
+              AssertThrowMPI(ierr);
 
               // output the string. note that 'tmp' has length max_data_length,
               // but we only wrote a certain piece of it in the MPI_Recv, ended
@@ -726,8 +756,9 @@ namespace aspect
         // on other processors, send the data to processor zero. include the \0
         // character at the end of the string
         {
-          MPI_Send (&output.str()[0], output.str().size()+1, MPI_CHAR, 0, mpi_tag,
-                    this->get_mpi_communicator());
+          const int ierr = MPI_Send (&output.str()[0], output.str().size()+1, MPI_CHAR, 0, mpi_tag,
+                                     this->get_mpi_communicator());
+          AssertThrowMPI(ierr);
         }
 
       // Prepare the free-air gravity anomaly output
@@ -826,8 +857,9 @@ namespace aspect
                   // determined the maximal message length, we use this feature here
                   // rather than trying to find out the exact message length with
                   // a call to MPI_Probe.
-                  MPI_Recv (&tmp[0], max_data_length, MPI_CHAR, p, mpi_tag,
-                            this->get_mpi_communicator(), &status);
+                  const int ierr = MPI_Recv (&tmp[0], max_data_length, MPI_CHAR, p, mpi_tag,
+                                             this->get_mpi_communicator(), &status);
+                  AssertThrowMPI(ierr);
                   // output the string. note that 'tmp' has length max_data_length,
                   // but we only wrote a certain piece of it in the MPI_Recv, ended
                   // by a \0 character. write only this part by outputting it as a
@@ -839,8 +871,9 @@ namespace aspect
             // on other processors, send the data to processor zero. include the \0
             // character at the end of the string
             {
-              MPI_Send (&output_gravity_anomaly.str()[0], output_gravity_anomaly.str().size()+1, MPI_CHAR, 0, mpi_tag,
-                        this->get_mpi_communicator());
+              const int ierr = MPI_Send (&output_gravity_anomaly.str()[0], output_gravity_anomaly.str().size()+1, MPI_CHAR, 0, mpi_tag,
+                                         this->get_mpi_communicator());
+              AssertThrowMPI(ierr);
             }
         }
 
@@ -853,16 +886,27 @@ namespace aspect
     Geoid<dim>::required_other_postprocessors() const
     {
       std::list<std::string> deps;
-      deps.emplace_back("dynamic topography");
-      deps.emplace_back("boundary densities");
+      if (include_dynamic_topo_contribution == true)
+        {
+          deps.emplace_back("dynamic topography");
+          deps.emplace_back("boundary densities");
+        }
       return deps;
     }
 
     template <int dim>
     double
-    Geoid<dim>::evaluate (const Point<dim> &p) const
+    Geoid<dim>::evaluate (const Point<dim> &/*p*/) const
     {
-      const std::array<double,dim> scoord = aspect::Utilities::Coordinates::cartesian_to_spherical_coordinates(p);
+      Assert(false, ExcNotImplemented());
+      return 0;
+    }
+
+    template <>
+    double
+    Geoid<3>::evaluate (const Point<3> &p) const
+    {
+      const std::array<double,3> scoord = aspect::Utilities::Coordinates::cartesian_to_spherical_coordinates(p);
       const double theta = scoord[2];
       const double phi = scoord[1];
       double value = 0.;
@@ -887,6 +931,9 @@ namespace aspect
       {
         prm.enter_subsection("Geoid");
         {
+          prm.declare_entry("Include the contributon from dynamic topography", "true",
+                            Patterns::Bool(),
+                            "Option to include the contribution from dynamic topography on geoid. The default is true.");
           prm.declare_entry("Maximum degree","20",
                             Patterns::Integer (0),
                             "This parameter can be a random positive integer. However, the value normally should not exceed the maximum "
@@ -900,11 +947,11 @@ namespace aspect
                             Patterns::Bool(),
                             "Option to output the geoid anomaly in geographical coordinates (latitude and longitude). "
                             "The default is false, so postprocess will output the data in geocentric coordinates (x,y,z) as normally.");
-          prm.declare_entry("Density above","0",
-                            Patterns::Double (0),
+          prm.declare_entry("Density above","0.",
+                            Patterns::Double (0.),
                             "The density value above the surface boundary.");
-          prm.declare_entry("Density below","9900",
-                            Patterns::Double (0),
+          prm.declare_entry("Density below","9900.",
+                            Patterns::Double (0.),
                             "The density value below the CMB boundary.");
           prm.declare_entry("Also output the spherical harmonic coefficients of geoid anomaly", "false",
                             Patterns::Bool(),
@@ -936,10 +983,13 @@ namespace aspect
     void
     Geoid<dim>::parse_parameters (ParameterHandler &prm)
     {
+      CitationInfo::add("geoid");
+
       prm.enter_subsection("Postprocess");
       {
         prm.enter_subsection("Geoid");
         {
+          include_dynamic_topo_contribution = prm.get_bool ("Include the contributon from dynamic topography");
           max_degree = prm.get_integer ("Maximum degree");
           min_degree = prm.get_integer ("Minimum degree");
           output_in_lat_lon = prm.get_bool ("Output data in geographical coordinates");
@@ -947,7 +997,19 @@ namespace aspect
           density_below = prm.get_double ("Density below");
           also_output_geoid_anomaly_SH_coes = prm.get_bool ("Also output the spherical harmonic coefficients of geoid anomaly");
           also_output_surface_dynamic_topo_contribution_SH_coes = prm.get_bool ("Also output the spherical harmonic coefficients of surface dynamic topography contribution");
+          if (also_output_surface_dynamic_topo_contribution_SH_coes == true)
+            {
+              AssertThrow(include_dynamic_topo_contribution == true,
+                          ExcMessage("We can output the surface dynamic topography contribution "
+                                     "only if the dynamic topography contribution is included."));
+            }
           also_output_CMB_dynamic_topo_contribution_SH_coes = prm.get_bool ("Also output the spherical harmonic coefficients of CMB dynamic topography contribution");
+          if (also_output_CMB_dynamic_topo_contribution_SH_coes == true)
+            {
+              AssertThrow(include_dynamic_topo_contribution == true,
+                          ExcMessage("We can output the CMB dynamic topography contribution "
+                                     "only if the dynamic topography contribution is included."));
+            }
           also_output_density_anomaly_contribution_SH_coes = prm.get_bool ("Also output the spherical harmonic coefficients of density anomaly contribution");
           also_output_gravity_anomaly = prm.get_bool ("Also output the gravity anomaly");
         }

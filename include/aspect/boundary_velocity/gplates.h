@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2011 - 2018 by the authors of the ASPECT code.
+  Copyright (C) 2011 - 2019 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -24,7 +24,6 @@
 
 #include <aspect/boundary_velocity/interface.h>
 #include <aspect/simulator_access.h>
-#include <aspect/compat.h>
 
 #include <array>
 #include <deal.II/base/function_lib.h>
@@ -81,7 +80,7 @@ namespace aspect
           /**
            * Interpolation functions to access the velocities.
            */
-          std::array<std::unique_ptr<typename Functions::InterpolatedUniformGridData<2> >, 2> velocities;
+          std::array<std::unique_ptr<Functions::InterpolatedUniformGridData<2>>, 2> velocities;
 
           /**
            * Distances between adjacent point in the Lat/Long grid
@@ -189,7 +188,7 @@ namespace aspect
          */
         Tensor<1,dim>
         boundary_velocity (const types::boundary_id boundary_indicator,
-                           const Point<dim> &position) const;
+                           const Point<dim> &position) const override;
 
         // avoid -Woverloaded-virtual warning until the deprecated function
         // is removed from the interface:
@@ -199,9 +198,8 @@ namespace aspect
          * Initialization function. This function is called once at the
          * beginning of the program. Checks preconditions.
          */
-        virtual
         void
-        initialize ();
+        initialize () override;
 
         /**
          * A function that is called at the beginning of each time step. For
@@ -209,9 +207,8 @@ namespace aspect
          * necessary and outputs a warning if the end of the set of velocity
          * files is reached.
          */
-        virtual
         void
-        update ();
+        update () override;
 
         /**
          * Declare the parameters this class takes through input files.
@@ -224,7 +221,7 @@ namespace aspect
          * Read the parameters this class declares from the parameter file.
          */
         void
-        parse_parameters (ParameterHandler &prm);
+        parse_parameters (ParameterHandler &prm) override;
 
       private:
         /**

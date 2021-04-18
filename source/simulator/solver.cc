@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2011 - 2019 by the authors of the ASPECT code.
+  Copyright (C) 2011 - 2020 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -32,8 +32,6 @@
 #else
 #include <deal.II/lac/trilinos_solver.h>
 #endif
-
-#include <deal.II/lac/pointer_matrix.h>
 
 #include <deal.II/fe/fe_values.h>
 
@@ -375,6 +373,39 @@ namespace aspect
 
   }
 
+  namespace
+  {
+    void linear_solver_failed(const std::string &solver_name,
+                              const std::string &output_filename,
+                              const std::vector<SolverControl> &solver_controls,
+                              const std::exception &exc)
+    {
+      // output solver history
+      std::ofstream f((output_filename).c_str());
+
+      for (unsigned int i=0; i<solver_controls.size(); ++i)
+        {
+          if (i>0)
+            f << "\n";
+
+          // Only request the solver history if a history has actually been created
+          for (unsigned int j=0; j<solver_controls[i].get_history_data().size(); ++j)
+            f << j << " " << solver_controls[i].get_history_data()[j] << "\n";
+        }
+
+      f.close();
+
+      AssertThrow (false,
+                   ExcMessage ("The " + solver_name
+                               + " did not converge. It reported the following error:\n\n"
+                               +
+                               exc.what()
+                               + "\n The required residual for convergence is: " + std::to_string(solver_controls.front().tolerance())
+                               + ".\n See " + output_filename
+                               + " for convergence history."));
+    }
+  }
+
   template <int dim>
   double Simulator<dim>::solve_advection (const AdvectionField &advection_field)
   {
@@ -425,7 +456,8 @@ namespace aspect
                             "but the right-hand side is nonzero."));
 
     LinearAlgebra::PreconditionILU preconditioner;
-    build_advection_preconditioner(advection_field, preconditioner);
+    // first build without diagonal strengthening:
+    build_advection_preconditioner(advection_field, preconditioner, 0.);
 
     TimerOutput::Scope timer (computing_timer, (advection_field.is_temperature() ?
                                                 "Solve temperature system" :
@@ -443,7 +475,7 @@ namespace aspect
       }
 
     // Create distributed vector (we need all blocks here even though we only
-    // solve for the current block) because only have a ConstraintMatrix
+    // solve for the current block) because only have a AffineConstraints<double>
     // for the whole system, current_linearization_point contains our initial guess.
     LinearAlgebra::BlockVector distributed_solution (
       introspection.index_sets.system_partitioning,
@@ -467,10 +499,26 @@ namespace aspect
     // solve the linear system:
     try
       {
-        solver.solve (system_matrix.block(block_idx,block_idx),
-                      distributed_solution.block(block_idx),
-                      system_rhs.block(block_idx),
-                      preconditioner);
+        try
+          {
+            solver.solve (system_matrix.block(block_idx,block_idx),
+                          distributed_solution.block(block_idx),
+                          system_rhs.block(block_idx),
+                          preconditioner);
+          }
+        catch (const std::exception &exc)
+          {
+            // Try rebuilding the preconditioner with diagonal strengthening. In general,
+            // this increases the number of iterations needed, but helps in rare situations,
+            // especially when SUPG is used.
+            pcout << "retrying linear solve with different preconditioner..." << std::endl;
+            build_advection_preconditioner(advection_field, preconditioner, 1e-5);
+            solver.solve (system_matrix.block(block_idx,block_idx),
+                          distributed_solution.block(block_idx),
+                          system_rhs.block(block_idx),
+                          preconditioner);
+          }
+
       }
     // if the solver fails, report the error from processor 0 with some additional
     // information about its location, and throw a quiet exception on all other
@@ -484,13 +532,14 @@ namespace aspect
                                       solver_control);
 
         if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
-          AssertThrow (false,
-                       ExcMessage (std::string("The iterative advection solver "
-                                               "did not converge. It reported the following error:\n\n")
-                                   +
-                                   exc.what()))
-          else
-            throw QuietException();
+          {
+            linear_solver_failed("iterative advection solver",
+                                 parameters.output_directory+"solver_history.txt",
+                                 std::vector<SolverControl> {solver_control},
+                                 exc);
+          }
+        else
+          throw QuietException();
       }
 
     // signal successful solver
@@ -825,6 +874,10 @@ namespace aspect
 
             try
               {
+                AssertThrow (parameters.n_expensive_stokes_solver_steps>0,
+                             ExcMessage ("The Stokes solver did not converge in the number of requested cheap iterations and "
+                                         "you requested 0 for ``Maximum number of expensive Stokes solver steps''. Aborting."));
+
                 solver.solve(stokes_block,
                              distributed_stokes_solution,
                              distributed_stokes_rhs,
@@ -845,31 +898,12 @@ namespace aspect
 
                 if (Utilities::MPI::this_mpi_process(mpi_communicator) == 0)
                   {
-                    // output solver history
-                    std::ofstream f((parameters.output_directory+"solver_history.txt").c_str());
-
-                    // Only request the solver history if a history has actually been created
-                    if (parameters.n_cheap_stokes_solver_steps > 0)
-                      {
-                        for (unsigned int i=0; i<solver_control_cheap.get_history_data().size(); ++i)
-                          f << i << " " << solver_control_cheap.get_history_data()[i] << "\n";
-
-                        f << "\n";
-                      }
-
-
-                    for (unsigned int i=0; i<solver_control_expensive.get_history_data().size(); ++i)
-                      f << i << " " << solver_control_expensive.get_history_data()[i] << "\n";
-
-                    f.close();
-
-                    AssertThrow (false,
-                                 ExcMessage (std::string("The iterative Stokes solver "
-                                                         "did not converge. It reported the following error:\n\n")
-                                             +
-                                             exc.what()
-                                             + "\n See " + parameters.output_directory+"solver_history.txt"
-                                             + " for convergence history."));
+                    linear_solver_failed("iterative Stokes solver",
+                                         parameters.output_directory+"solver_history.txt",
+                                         parameters.n_cheap_stokes_solver_steps > 0 ?
+                                         std::vector<SolverControl> {solver_control_cheap, solver_control_expensive} :
+                                         std::vector<SolverControl> {solver_control_expensive},
+                                         exc);
                   }
                 else
                   {
@@ -917,7 +951,7 @@ namespace aspect
 
     // convert melt pressures:
     if (parameters.include_melt_transport)
-      melt_handler->compute_melt_variables(solution);
+      melt_handler->compute_melt_variables(system_matrix,solution,system_rhs);
 
     return std::pair<double,double>(initial_nonlinear_residual,
                                     final_linear_residual);
@@ -937,4 +971,6 @@ namespace aspect
   template std::pair<double,double> Simulator<dim>::solve_stokes ();
 
   ASPECT_INSTANTIATE(INSTANTIATE)
+
+#undef INSTANTIATE
 }

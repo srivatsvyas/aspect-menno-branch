@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2011 - 2018 by the authors of the ASPECT code.
+  Copyright (C) 2011 - 2020 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -30,7 +30,6 @@
 #include <deal.II/lac/trilinos_solver.h>
 #endif
 
-#include <deal.II/lac/pointer_matrix.h>
 #include <deal.II/base/tensor_function.h>
 
 #include <deal.II/base/quadrature_lib.h>
@@ -66,7 +65,7 @@ namespace aspect
           axis(rotation_axis)
         {}
 
-        virtual Tensor<1,dim> value (const Point<dim> &p) const
+        Tensor<1,dim> value (const Point<dim> &p) const override
         {
           if ( dim == 2)
             return cross_product_2d(p);
@@ -101,7 +100,7 @@ namespace aspect
           translation(t)
         {}
 
-        virtual Tensor<1,dim> value(const Point<dim> &) const
+        Tensor<1,dim> value(const Point<dim> &) const override
         {
           return translation;
         }
@@ -111,7 +110,7 @@ namespace aspect
 
 
   template <int dim>
-  void Simulator<dim>::setup_nullspace_constraints(ConstraintMatrix &constraints)
+  void Simulator<dim>::setup_nullspace_constraints(AffineConstraints<double> &constraints)
   {
     if (!(parameters.nullspace_removal & (NullspaceRemoval::linear_momentum
                                           | NullspaceRemoval::net_translation)))
@@ -133,7 +132,7 @@ namespace aspect
 
       std::vector<types::global_dof_index> local_dof_indices (finite_element.dofs_per_cell);
       typename DoFHandler<dim>::active_cell_iterator cell;
-      for (cell = dof_handler.begin_active(); n_left_to_find>0 && cell != dof_handler.end(); ++cell)
+      for (const auto &cell : dof_handler.active_cell_iterators())
         if (cell->is_locally_owned())
           {
             cell->get_dof_indices (local_dof_indices);
@@ -161,9 +160,11 @@ namespace aspect
 
                 // are we done searching?
                 if (n_left_to_find == 0)
-                  break; // exit inner loop, outer loop will terminate automatically
+                  break; // exit inner loop
               }
 
+            if (n_left_to_find == 0)
+              break; // exit outer loop
           }
 
     }
@@ -227,6 +228,12 @@ namespace aspect
         // use_constant_density = true, remove net rotation
         remove_net_angular_momentum( true, relevant_dst, tmp_distributed_stokes);
       }
+    if (parameters.nullspace_removal & NullspaceRemoval::net_surface_rotation)
+      {
+        // use_constant_density = true, remove net rotation
+        // limit_to_top_faces = true, to limit to surface motions
+        remove_net_angular_momentum( true, relevant_dst, tmp_distributed_stokes, true);
+      }
     if (parameters.nullspace_removal & NullspaceRemoval::net_translation)
       {
         // use_constant_density = true, remove net translation
@@ -261,7 +268,7 @@ namespace aspect
 
     typename DoFHandler<dim>::active_cell_iterator cell;
     // loop over all local cells
-    for (cell = dof_handler.begin_active(); cell != dof_handler.end(); ++cell)
+    for (const auto &cell : dof_handler.active_cell_iterators())
       if (cell->is_locally_owned())
         {
           fe.reinit (cell);
@@ -342,58 +349,84 @@ namespace aspect
       tmp_distributed_stokes.block(introspection.block_indices.velocities);
   }
 
-  template <int dim>
-  void Simulator<dim>::remove_net_angular_momentum( const bool use_constant_density,
-                                                    LinearAlgebra::BlockVector &relevant_dst,
-                                                    LinearAlgebra::BlockVector &tmp_distributed_stokes)
-  {
-    Assert(introspection.block_indices.velocities != introspection.block_indices.pressure,
-           ExcNotImplemented());
 
-    // compute and remove angular momentum from velocity field, by computing
+
+  template <int dim>
+  RotationProperties<dim>
+  Simulator<dim>::compute_net_angular_momentum(const bool use_constant_density,
+                                               const LinearAlgebra::BlockVector &solution,
+                                               const bool limit_to_top_faces) const
+  {
+    // compute the momentum from velocity field, by computing
     // \int \rho u \cdot r_orth = \omega  * \int \rho x^2    ( 2 dimensions)
     // \int \rho r \times u =  I \cdot \omega  (3 dimensions)
 
     QGauss<dim> quadrature(parameters.stokes_velocity_degree+1);
-    const unsigned int n_q_points = quadrature.size();
-    FEValues<dim> fe(*mapping, finite_element, quadrature,
-                     UpdateFlags(update_quadrature_points | update_JxW_values | update_values | update_gradients));
+    QGauss<dim-1> surface_quadrature(parameters.stokes_velocity_degree+1);
 
-    typename DoFHandler<dim>::active_cell_iterator cell;
+    const unsigned int n_q_points = (limit_to_top_faces == false) ? quadrature.size() : surface_quadrature.size();
+    UpdateFlags flags = update_quadrature_points | update_JxW_values | update_values | update_gradients;
+
+    FEValues<dim> fe_values (*mapping, finite_element, quadrature, flags);
+    FEFaceValues<dim> fe_face_values (*mapping, finite_element, surface_quadrature, flags);
+    FEValuesBase<dim> &fe((limit_to_top_faces == false)
+                          ?
+                          dynamic_cast<FEValuesBase<dim> &>(fe_values)
+                          :
+                          dynamic_cast<FEValuesBase<dim> &>(fe_face_values));
 
     // moment of inertia and angular momentum for 3D
     SymmetricTensor<2,dim> local_moment_of_inertia;
     Tensor<1,dim> local_angular_momentum;
 
     // analogues to the moment of inertia and angular momentum for 2D
-    double local_scalar_moment = 0.0;
+    double local_scalar_moment_of_inertia = 0.0;
     double local_scalar_angular_momentum = 0.0;
 
-    // Vectors for evaluating the finite element solution
-    std::vector<std::vector<double> > composition_values (introspection.n_compositional_fields,
-                                                          std::vector<double> (n_q_points));
+    // Structures for evaluating the velocities and the material model
+    MaterialModel::MaterialModelInputs<dim> in(n_q_points,
+                                               introspection.n_compositional_fields);
+    MaterialModel::MaterialModelOutputs<dim> out(n_q_points,
+                                                 introspection.n_compositional_fields);
 
     // loop over all local cells
-    for (cell = dof_handler.begin_active(); cell != dof_handler.end(); ++cell)
+    for (const auto &cell : dof_handler.active_cell_iterators())
       if (cell->is_locally_owned())
         {
-          fe.reinit (cell);
+          if (limit_to_top_faces == false)
+            fe_values.reinit (cell);
+          else
+            {
+              // We only want the output at the top boundary, so only compute it if the current cell
+              // has a face at the top boundary.
+              bool cell_at_top_boundary = false;
+              for (unsigned int f=0; f<GeometryInfo<dim>::faces_per_cell; ++f)
+                if (cell->at_boundary(f) &&
+                    (geometry_model->translate_id_to_symbol_name (cell->face(f)->boundary_id()) == "top"))
+                  {
+                    Assert(cell_at_top_boundary == false,
+                           ExcInternalError("Error, more than one top surface found in a cell."));
+
+                    cell_at_top_boundary = true;
+                    fe_face_values.reinit(cell,f);
+                  }
+
+              if (cell_at_top_boundary == false)
+                continue;
+            }
+
           const std::vector<Point<dim> > &q_points = fe.get_quadrature_points();
 
-          // get the density at each quadrature point if necessary
-          MaterialModel::MaterialModelInputs<dim> in(n_q_points,
-                                                     introspection.n_compositional_fields);
-          MaterialModel::MaterialModelOutputs<dim> out(n_q_points,
-                                                       introspection.n_compositional_fields);
-
-          // Get the velocity at each quadrature point
-          fe[introspection.extractors.velocities].get_function_values (relevant_dst, in.velocity);
-
-          if ( ! use_constant_density)
+          if (use_constant_density == false)
             {
               // Set use_strain_rates to false since we don't need viscosity
               in.reinit(fe, cell, introspection, solution, false);
               material_model->evaluate(in, out);
+            }
+          else
+            {
+              // Get the velocity at each quadrature point
+              fe[introspection.extractors.velocities].get_function_values (solution, in.velocity);
             }
 
           // actually compute the moment of inertia and angular momentum
@@ -402,65 +435,76 @@ namespace aspect
               // get the position and density at this quadrature point
               const Point<dim> r_vec = q_points[k];
               const double rho = (use_constant_density ? 1.0 : out.densities[k]);
+              const double JxW = fe.JxW(k);
 
               if (dim == 2)
                 {
                   // Get the velocity perpendicular to the position vector
-                  Tensor<1,dim> r_perp = cross_product_2d(r_vec);
+                  const Tensor<1,dim> r_perp = cross_product_2d(r_vec);
 
-                  // calculate a signed scalar angular momentum
-                  local_scalar_angular_momentum += in.velocity[k] * r_perp * rho * fe.JxW(k);
-                  // calculate a scalar moment of inertia
-                  local_scalar_moment += r_vec.norm_square() * rho * fe.JxW(k);
+                  local_scalar_angular_momentum += in.velocity[k] * r_perp * rho * JxW;
+                  local_scalar_moment_of_inertia += r_vec.norm_square() * rho * JxW;
                 }
               else
                 {
-                  // calculate angular momentum vector
-                  Tensor<1,dim> r_cross_v = cross_product_3d(r_vec, in.velocity[k]);
-                  for (unsigned int i=0; i<dim; ++i)
-                    local_angular_momentum[i] += r_cross_v[i] * rho * fe.JxW(k);
+                  const Tensor<1,dim> r_cross_v = cross_product_3d(r_vec, in.velocity[k]);
 
-                  // calculate moment of inertia
-                  local_moment_of_inertia[0][0] += (r_vec.square() - r_vec[0] * r_vec[0]) * rho * fe.JxW(k);
-                  local_moment_of_inertia[1][1] += (r_vec.square() - r_vec[1] * r_vec[1]) * rho * fe.JxW(k);
-                  local_moment_of_inertia[2][2] += (r_vec.square() - r_vec[2] * r_vec[2]) * rho * fe.JxW(k);
-                  local_moment_of_inertia[0][1] -= (r_vec[0] * r_vec[1]) * rho * fe.JxW(k);
-                  local_moment_of_inertia[0][2] -= (r_vec[0] * r_vec[2]) * rho * fe.JxW(k);
-                  local_moment_of_inertia[1][2] -= (r_vec[1] * r_vec[2]) * rho * fe.JxW(k);
+                  local_angular_momentum += r_cross_v * rho * JxW;
+                  local_moment_of_inertia += (r_vec.norm_square() * unit_symmetric_tensor<dim>() - symmetrize(outer_product(r_vec,r_vec))) * rho * JxW;
                 }
             }
         }
+
+    RotationProperties<dim> properties;
+
+    // Sum up the local contributions and solve for the overall rotation
+    if (dim == 2)
+      {
+        properties.scalar_moment_of_inertia = Utilities::MPI::sum(local_scalar_moment_of_inertia, mpi_communicator);
+        properties.scalar_angular_momentum = Utilities::MPI::sum(local_scalar_angular_momentum, mpi_communicator);
+        properties.scalar_rotation = properties.scalar_angular_momentum / properties.scalar_moment_of_inertia;
+      }
+    else
+      {
+        properties.tensor_moment_of_inertia = Utilities::MPI::sum(local_moment_of_inertia,
+                                                                  mpi_communicator);
+        properties.tensor_angular_momentum = Utilities::MPI::sum(local_angular_momentum, mpi_communicator );
+        const SymmetricTensor<2,dim> inverse_moment (invert(Tensor<2,dim>(properties.tensor_moment_of_inertia)));
+        properties.tensor_rotation = - inverse_moment * properties.tensor_angular_momentum;
+      }
+
+    return properties;
+  }
+
+
+
+  template <int dim>
+  void Simulator<dim>::remove_net_angular_momentum( const bool use_constant_density,
+                                                    LinearAlgebra::BlockVector &relevant_dst,
+                                                    LinearAlgebra::BlockVector &tmp_distributed_stokes,
+                                                    const bool limit_to_top_faces)
+  {
+    Assert(introspection.block_indices.velocities != introspection.block_indices.pressure,
+           ExcNotImplemented());
+
+    RotationProperties<dim> rotation_properties = compute_net_angular_momentum(use_constant_density,
+                                                                               relevant_dst,
+                                                                               limit_to_top_faces);
 
     // vector for storing the correction to the velocity field
     LinearAlgebra::Vector correction(tmp_distributed_stokes.block(introspection.block_indices.velocities));
 
     if (dim == 2)
       {
-        const double scalar_moment = Utilities::MPI::sum(local_scalar_moment, mpi_communicator);
-        const double scalar_angular_momentum = Utilities::MPI::sum(local_scalar_angular_momentum, mpi_communicator);
-
-        // Solve for the rotation rate to cancel the angular momentum
-        const double rotation_rate = scalar_angular_momentum / scalar_moment;
-
         // Now construct a rotation vector with the desired rate and subtract it from our vector
         const internal::Rotation<dim> rot(0);
         interpolate_onto_velocity_system(rot, correction);
-        tmp_distributed_stokes.block(introspection.block_indices.velocities).add(-1.0*rotation_rate,correction);
+        tmp_distributed_stokes.block(introspection.block_indices.velocities).add(-1.0*rotation_properties.scalar_rotation,correction);
       }
     else
       {
-        // sum up the local contributions to moment of inertia
-        const SymmetricTensor<2,dim> moment_of_inertia = Utilities::MPI::sum(local_moment_of_inertia,
-                                                                             mpi_communicator);
-        // sum up the local contributions to angular momentum
-        const Tensor<1,dim> angular_momentum = Utilities::MPI::sum(local_angular_momentum, mpi_communicator );
-
-        // Solve for the rotation vector that cancels the net momentum
-        const SymmetricTensor<2,dim> inverse_moment (invert( Tensor<2,dim>(moment_of_inertia)));
-        const Tensor<1,dim> omega = - inverse_moment * angular_momentum;
-
         // Remove that rotation from the solution vector
-        const internal::Rotation<dim> rot(omega);
+        const internal::Rotation<dim> rot(rotation_properties.tensor_rotation);
         interpolate_onto_velocity_system(rot, correction);
         tmp_distributed_stokes.block(introspection.block_indices.velocities).add(1.0,correction);
       }
@@ -480,8 +524,11 @@ namespace aspect
 namespace aspect
 {
 #define INSTANTIATE(dim) \
+  template struct RotationProperties<dim>; \
   template void Simulator<dim>::remove_nullspace (LinearAlgebra::BlockVector &,LinearAlgebra::BlockVector &vector); \
-  template void Simulator<dim>::setup_nullspace_constraints (ConstraintMatrix &);
+  template void Simulator<dim>::setup_nullspace_constraints (AffineConstraints<double> &);
 
   ASPECT_INSTANTIATE(INSTANTIATE)
+
+#undef INSTANTIATE
 }

@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2011 - 2017 by the authors of the ASPECT code.
+  Copyright (C) 2011 - 2020 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -46,10 +46,7 @@ namespace aspect
 
       double local_velocity_square_integral = 0;
 
-      typename DoFHandler<dim>::active_cell_iterator
-      cell = this->get_dof_handler().begin_active(),
-      endc = this->get_dof_handler().end();
-      for (; cell!=endc; ++cell)
+      for (const auto &cell : this->get_dof_handler().active_cell_iterators())
         if (cell->is_locally_owned())
           {
             fe_values.reinit (cell);
@@ -69,7 +66,7 @@ namespace aspect
       const double vrms = std::sqrt(global_velocity_square_integral) / std::sqrt(this->get_volume());
 
       // Keep a list of times and RMS velocities at those times
-      time_rmsvel.push_back(std::make_pair(this->get_time(), vrms));
+      time_rmsvel.emplace_back(this->get_time(), vrms);
 
       // If the length of the simulation time covered in the list is shorter than the
       // specified parameter, we must continue the simulation
@@ -121,13 +118,13 @@ namespace aspect
         prm.enter_subsection("Steady state velocity");
         {
           prm.declare_entry ("Maximum relative deviation", "0.05",
-                             Patterns::Double (0),
+                             Patterns::Double (0.),
                              "The maximum relative deviation of the RMS in recent "
                              "simulation time for the system to be considered in "
                              "steady state. If the actual deviation is smaller "
                              "than this number, then the simulation will be terminated.");
           prm.declare_entry ("Time in steady state", "1e7",
-                             Patterns::Double (0),
+                             Patterns::Double (0.),
                              "The minimum length of simulation time that the system "
                              "should be in steady state before termination."
                              "Units: years if the "

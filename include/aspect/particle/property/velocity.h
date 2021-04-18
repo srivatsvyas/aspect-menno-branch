@@ -1,5 +1,5 @@
 /*
- Copyright (C) 2015 - 2017 by the authors of the ASPECT code.
+ Copyright (C) 2015 - 2019 by the authors of the ASPECT code.
 
  This file is part of ASPECT.
 
@@ -50,55 +50,34 @@ namespace aspect
            * of this function should be to extend this vector by a number of
            * properties.
            */
-          virtual
           void
           initialize_one_particle_property (const Point<dim> &position,
-                                            std::vector<double> &particle_properties) const;
+                                            std::vector<double> &particle_properties) const override;
 
           /**
-           * Update function. This function is called every time an update is
-           * request by need_update() for every particle for every property.
-           *
-           * @param [in] data_position An unsigned integer that denotes which
-           * component of the particle property vector is associated with the
-           * current property. For properties that own several components it
-           * denotes the first component of this property, all other components
-           * fill consecutive entries in the @p particle_properties vector.
-           *
-           * @param [in] position The current particle position.
-           *
-           * @param [in] solution The values of the solution variables at the
-           * current particle position.
-           *
-           * @param [in] gradients The gradients of the solution variables at
-           * the current particle position.
-           *
-           * @param [in,out] particle_properties The properties of the particle
-           * that is updated within the call of this function.
-           */
+          * @copydoc aspect::Particle::Property::Interface::update_particle_property()
+          **/
           virtual
           void
-          update_one_particle_property (const unsigned int data_position,
-                                        const Point<dim> &position,
-                                        const Vector<double> &solution,
-                                        const std::vector<Tensor<1,dim> > &gradients,
-                                        const ArrayView<double> &particle_properties) const;
+          update_particle_property (const unsigned int data_position,
+                                    const Vector<double> &solution,
+                                    const std::vector<Tensor<1,dim> > &gradients,
+                                    typename ParticleHandler<dim>::particle_iterator &particle) const override;
 
           /**
            * This implementation tells the particle manager that
            * we need to update particle properties over time.
            */
           UpdateTimeFlags
-          need_update () const;
+          need_update () const override;
 
           /**
            * Return which data has to be provided to update the property.
            * The velocity particle property needs the values of the velocity
            * solution.
            */
-          virtual
           UpdateFlags
-          get_needed_update_flags () const;
+          get_needed_update_flags () const override;
 
           /**
            * Set up the information about the names and number of components
@@ -107,13 +86,11 @@ namespace aspect
            * @return A vector that contains pairs of the property names and the
            * number of components this property plugin defines.
            */
-          virtual
           std::vector<std::pair<std::string, unsigned int> >
-          get_property_information() const;
+          get_property_information() const override;
       };
     }
   }
 }
 
 #endif
-

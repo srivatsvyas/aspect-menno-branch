@@ -1,5 +1,5 @@
 /*
- Copyright (C) 2015 - 2019 by the authors of the ASPECT code.
+ Copyright (C) 2015 - 2020 by the authors of the ASPECT code.
 
  This file is part of ASPECT.
 
@@ -344,6 +344,39 @@ namespace aspect
            * denotes the first component of this property, all other components
            * fill consecutive entries in the @p particle_properties vector.
            *
+           * @param [in] solution The values of the solution variables at the
+           * current particle position.
+           *
+           * @param [in] gradients The gradients of the solution variables at
+           * the current particle position.
+           *
+           * @param [in,out] particle The particle that is updated within
+           * the call of this function. The particle location can be accessed
+           * using particle->get_location() and its properties using
+           * particle->get_properties().
+           */
+          virtual
+          void
+          update_particle_property (const unsigned int data_position,
+                                    const Vector<double> &solution,
+                                    const std::vector<Tensor<1,dim> > &gradients,
+                                    typename ParticleHandler<dim>::particle_iterator &particle) const;
+
+          /**
+           * Update function. This function is called every time an update is
+           * request by need_update() for every particle for every property.
+           * It is obvious that
+           * this function is called a lot, so its code should be efficient.
+           * The interface provides a default implementation that does nothing,
+           * therefore derived plugins that do not require an update do not
+           * need to implement this function.
+           *
+           * @param [in] data_position An unsigned integer that denotes which
+           * component of the particle property vector is associated with the
+           * current property. For properties that own several components it
+           * denotes the first component of this property, all other components
+           * fill consecutive entries in the @p particle_properties vector.
+           *
            * @param [in] position The current particle position.
            *
            * @param [in] solution The values of the solution variables at the
@@ -354,7 +387,10 @@ namespace aspect
            *
            * @param [in,out] particle_properties The properties of the particle
            * that is updated within the call of this function.
+           *
+           * @deprecated Use update_particle_property() instead.
            */
+          DEAL_II_DEPRECATED
           virtual
           void
           update_one_particle_property (const unsigned int data_position,
@@ -475,7 +511,7 @@ namespace aspect
           /**
            * Destructor for Manager
            */
-          ~Manager ();
+          ~Manager () override;
 
           /**
            * Initialization function. This function is called once at the
@@ -537,6 +573,30 @@ namespace aspect
           get_needed_update_flags () const;
 
           /**
+           * Checks if the particle plugin specified by @p name exists
+           * in this model.
+           */
+          bool
+          plugin_name_exists(const std::string &name) const;
+
+          /**
+           * Checks if the particle property plugin specified by @p first
+           * is executed before another particle property plugin specified
+           * by @p second.
+           *
+           * Throws an assert when one of the plugin names does not
+           * exist. You can use the function plugin_name_exists() to
+           * check in advance whether a plugin exists
+           */
+          bool
+          check_plugin_order(const std::string &first, const std::string &second) const;
+
+          /**
+           * Get the plugin index of the particle plugin specified by @p name.
+           */
+          unsigned int get_plugin_index_by_name(const std::string &name) const;
+
+          /**
            * Get the number of components required to represent this particle's
            * properties.
            *
@@ -571,7 +631,7 @@ namespace aspect
            * vector of the particles.
            *
            * @deprecated This function will be replaced by
-           * ParticlePropertyInformation::get_position_by_fieldname(name)
+           * ParticlePropertyInformation::get_position_by_field_name(name)
            */
           DEAL_II_DEPRECATED
           unsigned int
@@ -631,6 +691,11 @@ namespace aspect
           write_plugin_graph (std::ostream &output_stream);
 
         private:
+          /**
+           * Stores the names of the plugins which are present
+           * in the order they are executed.
+           */
+          std::vector<std::string> plugin_names;
 
           /**
            * A list of property objects that have been requested in the
@@ -670,4 +735,3 @@ namespace aspect
 }
 
 #endif
-

@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2011 - 2018 by the authors of the ASPECT code.
+  Copyright (C) 2011 - 2019 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -40,8 +40,8 @@ namespace aspect
     std::pair<std::string,std::string>
     SphericalVelocityStatistics<dim>::execute (TableHandler &statistics)
     {
-      Assert (dynamic_cast<const GeometryModel::SphericalShell<dim>*> (&this->get_geometry_model()) != nullptr ||
-              dynamic_cast<const GeometryModel::Sphere<dim>*> (&this->get_geometry_model()) != nullptr,
+      Assert (Plugins::plugin_type_matches<const GeometryModel::SphericalShell<dim>> (this->get_geometry_model()) ||
+              Plugins::plugin_type_matches<const GeometryModel::Sphere<dim>> (this->get_geometry_model()),
               ExcMessage ("This postprocessor can only be used if the geometry "
                           "is a sphere or spherical shell."));
 
@@ -60,10 +60,7 @@ namespace aspect
       double local_rad_velocity_square_integral = 0;
       double local_tan_velocity_square_integral = 0;
 
-      typename DoFHandler<dim>::active_cell_iterator
-      cell = this->get_dof_handler().begin_active(),
-      endc = this->get_dof_handler().end();
-      for (; cell!=endc; ++cell)
+      for (const auto &cell : this->get_dof_handler().active_cell_iterators())
         if (cell->is_locally_owned())
           {
             fe_values.reinit (cell);

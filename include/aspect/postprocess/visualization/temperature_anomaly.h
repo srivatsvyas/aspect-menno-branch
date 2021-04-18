@@ -47,14 +47,12 @@ namespace aspect
         public:
           TemperatureAnomaly ();
 
-          virtual
           void
           evaluate_vector_field(const DataPostprocessorInputs::Vector<dim> &input_data,
-                                std::vector<Vector<double> > &computed_quantities) const;
+                                std::vector<Vector<double> > &computed_quantities) const override;
 
-          virtual
           void
-          update ();
+          update () override;
 
           /**
            * Declare the parameters this class takes through input files.
@@ -66,9 +64,8 @@ namespace aspect
           /**
            * Read the parameters this class declares from the parameter file.
            */
-          virtual
           void
-          parse_parameters (ParameterHandler &prm);
+          parse_parameters (ParameterHandler &prm) override;
 
         private:
           /**
@@ -82,7 +79,7 @@ namespace aspect
            */
           std::vector<double> padded_temperature_depth_average;
           /**
-           * Whether to extrapolate temperautres above/below the first/last depth-average slice
+           * Whether to extrapolate temperatures above/below the first/last depth-average slice
            * or, alternatively, interpolate above the center of the first slice using the surface
            * temperature or below the last slice using the bottom temperature.
            */

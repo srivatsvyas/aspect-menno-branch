@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2011 - 2018 by the authors of the ASPECT code.
+  Copyright (C) 2011 - 2019 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -45,9 +45,8 @@ namespace aspect
          * Evaluate the solution for the laterally averaged pressure at
          * the top and bottom of the domain.
          */
-        virtual
         std::pair<std::string,std::string>
-        execute (TableHandler &statistics);
+        execute (TableHandler &statistics) override;
 
         /**
          * Query the pressure at the top surface

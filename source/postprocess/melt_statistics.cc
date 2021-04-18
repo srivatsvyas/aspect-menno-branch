@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2015 - 2017 by the authors of the ASPECT code.
+  Copyright (C) 2015 - 2019 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -61,12 +61,8 @@ namespace aspect
       double local_min_melt = std::numeric_limits<double>::max();
       double local_max_melt = -std::numeric_limits<double>::max();
 
-      typename DoFHandler<dim>::active_cell_iterator
-      cell = this->get_dof_handler().begin_active(),
-      endc = this->get_dof_handler().end();
-
       // compute the integral quantities by quadrature
-      for (; cell!=endc; ++cell)
+      for (const auto &cell : this->get_dof_handler().active_cell_iterators())
         if (cell->is_locally_owned())
           {
             // fill material model inputs
@@ -77,9 +73,9 @@ namespace aspect
             // in the simulation has implemented them
             // otherwise, set them to zero
             std::vector<double> melt_fractions(n_q_points, 0.0);
-            if (const MaterialModel::MeltFractionModel<dim> *
-                melt_material_model = dynamic_cast <const MaterialModel::MeltFractionModel<dim>*> (&this->get_material_model()))
-              melt_material_model->melt_fractions(in, melt_fractions);
+            if (Plugins::plugin_type_matches<const MaterialModel::MeltFractionModel<dim>> (this->get_material_model()))
+              Plugins::get_plugin_as_type<const MaterialModel::MeltFractionModel<dim>>(this->get_material_model()).melt_fractions(in,
+                                                                                    melt_fractions);
 
             for (unsigned int q=0; q<n_q_points; ++q)
               {

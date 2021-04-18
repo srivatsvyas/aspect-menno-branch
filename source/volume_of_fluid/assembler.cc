@@ -1,5 +1,5 @@
 /*
- Copyright (C) 2016 - 2019 by the authors of the ASPECT code.
+ Copyright (C) 2016 - 2020 by the authors of the ASPECT code.
 
  This file is part of ASPECT.
 
@@ -112,7 +112,7 @@ namespace aspect
       for (unsigned int face_no = 0; face_no < GeometryInfo<dim>::faces_per_cell; ++face_no)
         {
           // Obtain the normal direction for the face in question
-          // Deall.II orders faces as dim*2+(face_direction_is_positive?1:0)
+          // Deal.II orders faces as dim*2+(face_direction_is_positive?1:0)
           const unsigned int face_normal_direction = face_no/2;
 
           if (face_normal_direction != calc_dir)
@@ -213,6 +213,7 @@ namespace aspect
                                            face->boundary_id(),
                                            scratch.face_finite_element_values.quadrature_point(q),
                                            field.composition_index) *
+                                         this->get_timestep() *
                                          current_u *
                                          scratch.face_finite_element_values.normal_vector(q) *
                                          scratch.face_finite_element_values.JxW(q);
@@ -265,7 +266,7 @@ namespace aspect
             }
           else if (face_flux < 0.0) // edge is upwind (inflow boundary), so use the volume fraction implied by the boundary condition
             {
-              flux_volume_of_fluid = -boundary_fluid_flux/face_flux;
+              flux_volume_of_fluid = boundary_fluid_flux/face_flux;
             }
           else // Cell is upwind of boundary, so compute the volume fraction on the advected volume
             {
@@ -368,11 +369,10 @@ namespace aspect
       const bool n_face_normal_is_positive = (neighbor_face_no%2==1);
 
       if ((!face->at_boundary() && !face->has_children())
-          ||
-          (face->at_boundary() && neighbor->active()))
+          || (face->at_boundary() && neighbor->is_active()))
         {
           if (neighbor->level () == cell->level () &&
-              neighbor->active() &&
+              neighbor->is_active() &&
               (((neighbor->is_locally_owned()) && (cell->index() < neighbor->index()))
                ||
                ((!neighbor->is_locally_owned()) && (cell->subdomain_id() < neighbor->subdomain_id()))))
@@ -639,6 +639,8 @@ namespace aspect
   template class VolumeOfFluidAssembler<dim>;
 
     ASPECT_INSTANTIATE(INSTANTIATE)
+
+#undef INSTANTIATE
 
   }
 }

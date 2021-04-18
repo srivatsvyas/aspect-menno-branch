@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2016 - 2018 by the authors of the ASPECT code.
+  Copyright (C) 2016 - 2020 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -732,7 +732,11 @@ namespace aspect
       if (!neighbor->has_children())
         {
           if (neighbor->level () == cell->level () &&
+#if DEAL_II_VERSION_GTE(9,2,0)
+              neighbor->is_active() &&
+#else
               neighbor->active() &&
+#endif
               (((neighbor->is_locally_owned()) && (cell->index() < neighbor->index()))
                ||
                ((!neighbor->is_locally_owned()) && (cell->subdomain_id() < neighbor->subdomain_id()))))
@@ -1412,5 +1416,7 @@ namespace aspect
   template class AdvectionSystemBoundaryHeatFlux<dim>;
 
     ASPECT_INSTANTIATE(INSTANTIATE)
+
+#undef INSTANTIATE
   }
 }

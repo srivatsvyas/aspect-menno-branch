@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2018 by the authors of the ASPECT code.
+  Copyright (C) 2018 - 2019 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -44,9 +44,8 @@ namespace aspect
         /**
          * Evaluate the solution for some material property statistics.
          */
-        virtual
         std::pair<std::string,std::string>
-        execute (TableHandler &statistics);
+        execute (TableHandler &statistics) override;
     };
   }
 }

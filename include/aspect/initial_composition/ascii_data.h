@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2011 - 2017 by the authors of the ASPECT code.
+  Copyright (C) 2011 - 2019 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -54,7 +54,7 @@ namespace aspect
          * beginning of the program. Checks preconditions.
          */
         void
-        initialize ();
+        initialize () override;
 
         // avoid -Woverloaded-virtual:
         using Utilities::AsciiDataInitial<dim>::initialize;
@@ -65,7 +65,7 @@ namespace aspect
          */
         double
         initial_composition (const Point<dim> &position,
-                             const unsigned int n_comp) const;
+                             const unsigned int n_comp) const override;
 
         /**
          * Declare the parameters this class takes through input files.
@@ -78,7 +78,7 @@ namespace aspect
          * Read the parameters this class declares from the parameter file.
          */
         void
-        parse_parameters (ParameterHandler &prm);
+        parse_parameters (ParameterHandler &prm) override;
     };
   }
 }

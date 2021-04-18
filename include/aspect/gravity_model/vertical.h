@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2011 - 2017 by the authors of the ASPECT code.
+  Copyright (C) 2011 - 2019 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -23,6 +23,7 @@
 #define _aspect_gravity_model_vertical_h
 
 #include <aspect/gravity_model/interface.h>
+#include <aspect/simulator_access.h>
 
 namespace aspect
 {
@@ -43,7 +44,7 @@ namespace aspect
         /**
          * Return the gravity vector as a function of position.
          */
-        virtual Tensor<1,dim> gravity_vector (const Point<dim> &position) const;
+        Tensor<1,dim> gravity_vector (const Point<dim> &position) const override;
 
         /**
          * Declare the parameters this class takes through input files.
@@ -55,9 +56,8 @@ namespace aspect
         /**
          * Read the parameters this class declares from the parameter file.
          */
-        virtual
         void
-        parse_parameters (ParameterHandler &prm);
+        parse_parameters (ParameterHandler &prm) override;
 
       private:
         /**

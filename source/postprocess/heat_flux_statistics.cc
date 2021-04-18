@@ -42,11 +42,7 @@ namespace aspect
 
       std::map<types::boundary_id, double> local_boundary_fluxes;
 
-      typename DoFHandler<dim>::active_cell_iterator
-      cell = this->get_dof_handler().begin_active(),
-      endc = this->get_dof_handler().end();
-
-      for (; cell!=endc; ++cell)
+      for (const auto &cell : this->get_dof_handler().active_cell_iterators())
         if (cell->is_locally_owned())
           for (unsigned int f=0; f<GeometryInfo<dim>::faces_per_cell; ++f)
             if (cell->at_boundary(f))
@@ -65,10 +61,9 @@ namespace aspect
         boundary_indicators
           = this->get_geometry_model().get_used_boundary_indicators ();
         std::vector<double> local_values;
-        for (std::set<types::boundary_id>::const_iterator
-             p = boundary_indicators.begin();
-             p != boundary_indicators.end(); ++p)
-          local_values.push_back (local_boundary_fluxes[*p]);
+        local_values.reserve(boundary_indicators.size());
+        for (const auto p : boundary_indicators)
+          local_values.emplace_back (local_boundary_fluxes[p]);
 
         // then collect contributions from all processors
         std::vector<double> global_values (local_values.size());

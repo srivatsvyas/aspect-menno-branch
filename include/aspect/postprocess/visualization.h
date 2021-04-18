@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2011 - 2019 by the authors of the ASPECT code.
+  Copyright (C) 2011 - 2020 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -37,6 +37,25 @@ namespace aspect
   {
     namespace VisualizationPostprocessors
     {
+      /**
+       * Compute the arithmetic average over q for each m of the variable quantities[q](m).
+       */
+      inline void average_quantities(std::vector<Vector<double> > &quantities)
+      {
+        const unsigned int N = quantities.size();
+        const unsigned int M = quantities[0].size();
+        for (unsigned int m=0; m<M; ++m)
+          {
+            double sum = 0;
+            for (unsigned int q=0; q<N; ++q)
+              sum += quantities[q](m);
+
+            const double average = sum/N;
+            for (unsigned int q=0; q<N; ++q)
+              quantities[q](m) = average;
+          }
+      }
+
       /**
        * This class declares the public interface of visualization
        * postprocessors. Visualization postprocessors are used to compute
@@ -226,8 +245,7 @@ namespace aspect
           /**
            * Destructor.
            */
-          virtual
-          ~CellDataVectorCreator () = default;
+          ~CellDataVectorCreator ()  override = default;
 
           /**
            * The function classes have to implement that want to output
@@ -250,6 +268,26 @@ namespace aspect
           virtual
           std::pair<std::string, Vector<float> *>
           execute () const = 0;
+      };
+
+
+      /**
+       * This class is a tag class: If a visualization postprocessor is derived
+       * from it, then this is interpreted as saying that the class will only
+       * be used to generate graphical output on the surface of the model,
+       * rather than for the entire domain.
+       */
+      template <int dim>
+      class SurfaceOnlyVisualization
+      {
+        public:
+          /**
+           * Destructor. Made `virtual` to ensure that it is possible to
+           * test whether a derived class is derived from this class via
+           * a `dynamic_cast`.
+           */
+          virtual
+          ~SurfaceOnlyVisualization () = default;
       };
     }
 
@@ -281,16 +319,14 @@ namespace aspect
         /**
          * Generate graphical output from the current solution.
          */
-        virtual
         std::pair<std::string,std::string>
-        execute (TableHandler &statistics);
+        execute (TableHandler &statistics) override;
 
         /**
          * Update any temporary information needed by the visualization postprocessor.
          */
-        virtual
         void
-        update ();
+        update () override;
 
         /**
          * A function that is used to register visualization postprocessor
@@ -324,9 +360,8 @@ namespace aspect
          * For the current class, we simply loop over all of the visualization
          * postprocessors and collect what they want.
          */
-        virtual
         std::list<std::string>
-        required_other_postprocessors () const;
+        required_other_postprocessors () const override;
 
         /**
          * Declare the parameters this class takes through input files.
@@ -338,21 +373,18 @@ namespace aspect
         /**
          * Read the parameters this class declares from the parameter file.
          */
-        virtual
         void
-        parse_parameters (ParameterHandler &prm);
+        parse_parameters (ParameterHandler &prm) override;
 
         /**
          * Save the state of this object.
          */
-        virtual
-        void save (std::map<std::string, std::string> &status_strings) const;
+        void save (std::map<std::string, std::string> &status_strings) const override;
 
         /**
          * Restore the state of the object.
          */
-        virtual
-        void load (const std::map<std::string, std::string> &status_strings);
+        void load (const std::map<std::string, std::string> &status_strings) override;
 
         /**
          * Serialize the contents of this class as far as they are not read
@@ -360,7 +392,6 @@ namespace aspect
          */
         template <class Archive>
         void serialize (Archive &ar, const unsigned int version);
-
 
         /**
          * For the current plugin subsystem, write a connection graph of all of the
@@ -374,6 +405,12 @@ namespace aspect
         static
         void
         write_plugin_graph (std::ostream &output_stream);
+
+        /**
+         * Return the value of the parameter @p pointwise_stress_and_strain
+         * that is controlled by the parameter "Point-wise stress and strain".
+         */
+        bool output_pointwise_stress_and_strain() const;
 
         /**
          * Exception.
@@ -462,6 +499,13 @@ namespace aspect
         bool filter_output;
 
         /**
+         * If true, return quantities related to stresses and strain with
+         * point-wise values. Otherwise the values will be averaged on each
+         * cell.
+         */
+        bool pointwise_stress_and_strain;
+
+        /**
          * deal.II offers the possibility to write vtu files with higher order
          * representations of the output data. This means each cell will correctly
          * show the higher order representation of the output data instead of the
@@ -475,7 +519,7 @@ namespace aspect
         bool write_higher_order_output;
 
         /**
-         * For mesh deformation computations Aspect uses an Arbitrary-Lagrangian-
+         * For mesh deformation computations ASPECT uses an Arbitrary-Lagrangian-
          * Eulerian formulation to handle deforming the domain, so the mesh
          * has its own velocity field.  This may be written as an output field
          * by setting output_mesh_velocity to true.
@@ -601,6 +645,12 @@ namespace aspect
          * output for cells (via DataOut).
          */
         OutputHistory cell_output_history;
+
+        /**
+         * Information about the history of writing graphical
+         * output for faces (via DataOutFaces).
+         */
+        OutputHistory face_output_history;
 
         /**
          * Write the various master record files. The master files are used by

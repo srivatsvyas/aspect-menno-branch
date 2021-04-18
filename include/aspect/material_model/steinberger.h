@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2011 - 2018 by the authors of the ASPECT code.
+  Copyright (C) 2011 - 2019 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -129,15 +129,14 @@ namespace aspect
          * Initialization function. Loads the material data and sets up
          * pointers.
          */
-        virtual
         void
-        initialize ();
+        initialize () override;
 
         /**
          * Called at the beginning of each time step and allows the material
          * model to update internal data structures.
          */
-        virtual void update();
+        void update() override;
 
         /**
          * @name Physical parameters used in the basic equations
@@ -149,40 +148,29 @@ namespace aspect
                                   const SymmetricTensor<2,dim> &strain_rate,
                                   const Point<dim>             &position) const;
 
-        virtual double density (const double temperature,
-                                const double pressure,
-                                const std::vector<double> &compositional_fields,
-                                const Point<dim> &position) const;
+        void fill_mass_and_volume_fractions (const MaterialModel::MaterialModelInputs<dim> &in,
+                                             std::vector<std::vector<double>> &mass_fractions,
+                                             std::vector<std::vector<double>> &volume_fractions) const;
 
-        virtual double compressibility (const double temperature,
-                                        const double pressure,
-                                        const std::vector<double> &compositional_fields,
-                                        const Point<dim> &position) const;
+        void fill_seismic_velocities (const MaterialModel::MaterialModelInputs<dim> &in,
+                                      const std::vector<double> &composite_densities,
+                                      const std::vector<std::vector<double>> &volume_fractions,
+                                      SeismicAdditionalOutputs<dim> *seismic_out) const;
 
-        virtual double specific_heat (const double temperature,
-                                      const double pressure,
-                                      const std::vector<double> &compositional_fields,
-                                      const Point<dim> &position) const;
-
-        virtual double thermal_conductivity (const double temperature,
-                                             const double pressure,
-                                             const std::vector<double> &compositional_fields,
-                                             const Point<dim> &position) const;
-
-        virtual double thermal_expansion_coefficient (const double      temperature,
-                                                      const double      pressure,
-                                                      const std::vector<double> &compositional_fields,
-                                                      const Point<dim> &position) const;
-
-        virtual double seismic_Vp (const double      temperature,
-                                   const double      pressure,
-                                   const std::vector<double> &compositional_fields,
-                                   const Point<dim> &position) const;
-
-        virtual double seismic_Vs (const double      temperature,
-                                   const double      pressure,
-                                   const std::vector<double> &compositional_fields,
-                                   const Point<dim> &position) const;
+        /**
+        * This function uses the MaterialModelInputs &in to fill the output_values
+        * of the phase_volume_fractions_out output object with the volume
+        * fractions of each of the unique phases at each of the evaluation points.
+        * These volume fractions are obtained from the PerpleX-derived
+        * pressure-temperature lookup tables.
+        * The filled output_values object is a vector of vector<double>;
+        * the outer vector is expected to have a size that equals the number
+        * of unique phases, the inner vector is expected to have a size that
+        * equals the number of evaluation points.
+        */
+        void fill_phase_volume_fractions (const MaterialModel::MaterialModelInputs<dim> &in,
+                                          const std::vector<std::vector<double>> &volume_fractions,
+                                          NamedAdditionalMaterialOutputs<dim> *phase_volume_fractions_out) const;
 
         /**
          * Returns the cell-wise averaged enthalpy derivatives for the evaluate
@@ -196,7 +184,7 @@ namespace aspect
          * cell is identical.
          */
         std::array<std::pair<double, unsigned int>,2>
-        enthalpy_derivative (const typename Interface<dim>::MaterialModelInputs &in) const;
+        enthalpy_derivatives (const typename Interface<dim>::MaterialModelInputs &in) const;
         /**
          * @}
          */
@@ -214,7 +202,7 @@ namespace aspect
          * equation as $\nabla \cdot (\rho \mathbf u)=0$ (compressible Stokes)
          * or as $\nabla \cdot \mathbf{u}=0$ (incompressible Stokes).
          */
-        virtual bool is_compressible () const;
+        bool is_compressible () const override;
         /**
          * @}
          */
@@ -223,7 +211,7 @@ namespace aspect
          * @name Reference quantities
          * @{
          */
-        virtual double reference_viscosity () const;
+        double reference_viscosity () const override;
         /**
          * @}
          */
@@ -233,10 +221,9 @@ namespace aspect
          * inputs in @p in. If MaterialModelInputs.strain_rate has the length
          * 0, then the viscosity does not need to be computed.
          */
-        virtual
         void
         evaluate(const MaterialModel::MaterialModelInputs<dim> &in,
-                 MaterialModel::MaterialModelOutputs<dim> &out) const;
+                 MaterialModel::MaterialModelOutputs<dim> &out) const override;
 
         /**
          * @name Functions used in dealing with run-time parameters
@@ -252,19 +239,20 @@ namespace aspect
         /**
          * Read the parameters this class declares from the parameter file.
          */
-        virtual
         void
-        parse_parameters (ParameterHandler &prm);
+        parse_parameters (ParameterHandler &prm) override;
         /**
          * @}
          */
 
-        virtual
         void
-        create_additional_named_outputs (MaterialModel::MaterialModelOutputs<dim> &out) const;
+        create_additional_named_outputs (MaterialModel::MaterialModelOutputs<dim> &out) const override;
 
 
       private:
+        bool has_background;
+        unsigned int first_composition_index;
+
         bool interpolation;
         bool latent_heat;
         bool use_lateral_average_temperature;
@@ -284,7 +272,7 @@ namespace aspect
         /**
          * Information about lateral temperature averages.
          */
-        std::vector<double> avg_temp;
+        std::vector<double> average_temperature;
         unsigned int n_lateral_slices;
 
         /**
@@ -308,6 +296,19 @@ namespace aspect
          * Perplex files.
          */
         std::vector<std::unique_ptr<MaterialModel::MaterialUtilities::Lookup::PerplexReader> > material_lookup;
+
+        /**
+        * Vector of strings containing the names of the unique phases in all the material lookups.
+        */
+        std::vector<std::string> unique_phase_names;
+
+        /**
+        * Vector of vector of unsigned ints which constitutes mappings
+        * between lookup phase name vectors and unique_phase_names.
+        * The element unique_phase_indices[i][j] contains the
+        * index of phase name j from lookup i as it is found in unique_phase_names.
+        */
+        std::vector<std::vector<unsigned int>> unique_phase_indices;
 
         /**
          * Pointer to an object that reads and processes data for the lateral

@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2011 - 2017 by the authors of the ASPECT code.
+  Copyright (C) 2011 - 2019 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -45,9 +45,8 @@ namespace aspect
           /**
            * @copydoc CellDataVectorCreator<dim>::execute()
            */
-          virtual
           std::pair<std::string, Vector<float> *>
-          execute () const;
+          execute () const override;
 
           /**
            * Declare the parameters this class takes through input files.
@@ -59,9 +58,8 @@ namespace aspect
           /**
            * Read the parameters this class declares from the parameter file.
            */
-          virtual
           void
-          parse_parameters (ParameterHandler &prm);
+          parse_parameters (ParameterHandler &prm) override;
 
         private:
           /**

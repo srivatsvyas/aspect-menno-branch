@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2011 - 2018 by the authors of the ASPECT code.
+  Copyright (C) 2011 - 2019 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -50,18 +50,16 @@ namespace aspect
         /**
          * Compute the heating model outputs for this class.
          */
-        virtual
         void
         evaluate (const MaterialModel::MaterialModelInputs<dim> &material_model_inputs,
                   const MaterialModel::MaterialModelOutputs<dim> &material_model_outputs,
-                  HeatingModel::HeatingModelOutputs &heating_model_outputs) const;
+                  HeatingModel::HeatingModelOutputs &heating_model_outputs) const override;
 
         /**
          * Allow the heating model to attach additional material model outputs.
          */
-        virtual
         void
-        create_additional_material_model_outputs(MaterialModel::MaterialModelOutputs<dim> &material_model_outputs) const;
+        create_additional_material_model_outputs(MaterialModel::MaterialModelOutputs<dim> &material_model_outputs) const override;
     };
   }
 }

@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2015 - 2017 by the authors of the ASPECT code.
+  Copyright (C) 2015 - 2020 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -63,12 +63,10 @@ namespace aspect
           // itself scales like 1/h, so multiplying it with any factor h^s, s>1
           // will yield convergence of the error indicators to zero as h->0)
           const double power = 1.0 + dim / 2.0;
-          typename DoFHandler<dim>::active_cell_iterator
-          cell = this->get_dof_handler().begin_active(),
-          endc = this->get_dof_handler().end();
-          for (unsigned int i=0; cell != endc; ++cell, ++i)
+          for (const auto &cell : this->get_dof_handler().active_cell_iterators())
             if (cell->is_locally_owned())
-              indicators_tmp(i) *= std::pow(cell->diameter(), power);
+              indicators_tmp(cell->active_cell_index()) *= std::pow(cell->diameter(), power);
+
           indicators += indicators_tmp;
         }
     }
@@ -85,7 +83,7 @@ namespace aspect
         {
           prm.declare_entry("Compositional field scaling factors",
                             "",
-                            Patterns::List (Patterns::Double(0)),
+                            Patterns::List (Patterns::Double (0.)),
                             "A list of scaling factors by which every individual compositional "
                             "field gradient will be multiplied. If only a single compositional "
                             "field exists, then this parameter has no particular meaning. "
@@ -153,4 +151,3 @@ namespace aspect
                                               "finite elements.")
   }
 }
-

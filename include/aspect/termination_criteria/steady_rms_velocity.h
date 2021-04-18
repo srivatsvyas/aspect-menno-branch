@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2011 - 2017 by the authors of the ASPECT code.
+  Copyright (C) 2011 - 2019 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -46,9 +46,8 @@ namespace aspect
          * @return Whether to terminate the simulation (true) or continue
          * (false).
          */
-        virtual
         bool
-        execute (void);
+        execute () override;
 
         /**
          * Declare the parameters this class takes through input files.
@@ -60,9 +59,8 @@ namespace aspect
         /**
          * Read the parameters this class declares from the parameter file.
          */
-        virtual
         void
-        parse_parameters (ParameterHandler &prm);
+        parse_parameters (ParameterHandler &prm) override;
 
       private:
         double                                  time_length;

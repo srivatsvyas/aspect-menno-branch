@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2014 - 2017 by the authors of the ASPECT code.
+  Copyright (C) 2014 - 2019 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -52,20 +52,18 @@ namespace aspect
          * Return the specific heating rate as calculated by the function
          * object.
          */
-        virtual
         void
         evaluate (const MaterialModel::MaterialModelInputs<dim> &material_model_inputs,
                   const MaterialModel::MaterialModelOutputs<dim> &material_model_outputs,
-                  HeatingModel::HeatingModelOutputs &heating_model_outputs) const;
+                  HeatingModel::HeatingModelOutputs &heating_model_outputs) const override;
 
         /**
          * A function that is called at the beginning of each time step to
          * allow the model to do whatever necessary. In this case the time of
          * the function object is updated.
          */
-        virtual
         void
-        update ();
+        update () override;
 
         /**
          * Declare the parameters this class takes through input files.
@@ -77,9 +75,8 @@ namespace aspect
         /**
          * Read the parameters this class declares from the parameter file.
          */
-        virtual
         void
-        parse_parameters (ParameterHandler &prm);
+        parse_parameters (ParameterHandler &prm) override;
 
       private:
         /**

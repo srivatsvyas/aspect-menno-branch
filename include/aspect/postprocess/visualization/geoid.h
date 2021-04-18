@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2016 - 2019 by the authors of the ASPECT code.
+  Copyright (C) 2016 - 2020 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -52,21 +52,27 @@ namespace aspect
           Geoid();
 
           /**
+           * Initialization function. This function is called once at the
+           * beginning of the program after parse_parameters is run and after
+           * the SimulatorAccess (if applicable) is initialized.
+          */
+          void
+          initialize () override;
+
+          /**
            * @copydoc DataPostprocessorScalar<dim>::evaluate_vector_field()
            */
-          virtual
           void
           evaluate_vector_field(const DataPostprocessorInputs::Vector<dim> &input_data,
-                                std::vector<Vector<double> > &computed_quantities) const;
+                                std::vector<Vector<double> > &computed_quantities) const override;
 
 
           /**
            * Let the postprocessor manager know about the other postprocessors
            * this one depends on. Specifically, the Geoid postprocessor.
            */
-          virtual
           std::list<std::string>
-          required_other_postprocessors() const;
+          required_other_postprocessors() const override;
 
         private:
 

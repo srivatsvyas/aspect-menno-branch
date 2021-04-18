@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2011 - 2017 by the authors of the ASPECT code.
+  Copyright (C) 2011 - 2019 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -49,11 +49,10 @@ namespace aspect
          * For the current class, this function obviously simply returns a zero
          * tensor.
          */
-        virtual
         Tensor<1,dim>
         boundary_traction (const types::boundary_id boundary_indicator,
                            const Point<dim> &position,
-                           const Tensor<1,dim> &normal_vector) const;
+                           const Tensor<1,dim> &normal_vector) const override;
     };
   }
 }

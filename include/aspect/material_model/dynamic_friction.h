@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2014 - 2018 by the authors of the ASPECT code.
+  Copyright (C) 2014 - 2019 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -23,6 +23,7 @@
 
 #include <aspect/material_model/interface.h>
 #include <aspect/simulator_access.h>
+#include <aspect/material_model/rheology/drucker_prager.h>
 #include <aspect/material_model/equation_of_state/multicomponent_incompressible.h>
 
 namespace aspect
@@ -71,8 +72,8 @@ namespace aspect
          * inputs in @p in. If MaterialModelInputs.strain_rate has the length
          * 0, then the viscosity does not need to be computed.
          */
-        virtual void evaluate(const MaterialModel::MaterialModelInputs<dim> &in,
-                              MaterialModel::MaterialModelOutputs<dim> &out) const;
+        void evaluate(const MaterialModel::MaterialModelInputs<dim> &in,
+                      MaterialModel::MaterialModelOutputs<dim> &out) const override;
 
         /**
          * @name Qualitative properties one can ask a material model
@@ -82,7 +83,7 @@ namespace aspect
         /**
          * This model is not compressible, so this returns false.
          */
-        virtual bool is_compressible () const;
+        bool is_compressible () const override;
         /**
          * @}
          */
@@ -91,7 +92,7 @@ namespace aspect
          * @name Reference quantities
          * @{
          */
-        virtual double reference_viscosity () const;
+        double reference_viscosity () const override;
         /**
          * @}
          */
@@ -111,9 +112,9 @@ namespace aspect
         /**
          * Read the parameters this class declares from the parameter file.
          */
-        virtual
         void
-        parse_parameters (ParameterHandler &prm);
+        parse_parameters (ParameterHandler &prm) override;
+
         /**
          * @}
          */
@@ -138,6 +139,11 @@ namespace aspect
         MaterialUtilities::CompositionalAveragingOperation viscosity_averaging;
 
         EquationOfState::MulticomponentIncompressible<dim> equation_of_state;
+
+        /*
+          * Objects for computing plastic stresses, viscosities, and additional outputs
+          */
+        Rheology::DruckerPrager<dim> drucker_prager_plasticity;
 
         /**
          * The dynamic coefficient of friction

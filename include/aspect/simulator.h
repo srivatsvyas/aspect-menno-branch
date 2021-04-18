@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2011 - 2019 by the authors of the ASPECT code.
+  Copyright (C) 2011 - 2020 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -29,21 +29,18 @@
 
 DEAL_II_DISABLE_EXTRA_DIAGNOSTICS
 
+#include <deal.II/lac/affine_constraints.h>
+
 #include <deal.II/distributed/tria.h>
 
 #include <deal.II/dofs/dof_handler.h>
+#include <deal.II/dofs/dof_tools.h>
 
 #include <deal.II/fe/fe_system.h>
 #include <deal.II/fe/mapping.h>
 #include <deal.II/base/tensor_function.h>
 
 DEAL_II_ENABLE_EXTRA_DIAGNOSTICS
-
-#if !DEAL_II_VERSION_GTE(9,1,0)
-#  include <deal.II/lac/constraint_matrix.h>
-#else
-#  include <deal.II/lac/affine_constraints.h>
-#endif
 
 #include <aspect/global.h>
 #include <aspect/simulator_access.h>
@@ -64,9 +61,10 @@ DEAL_II_ENABLE_EXTRA_DIAGNOSTICS
 #include <aspect/boundary_fluid_pressure/interface.h>
 #include <aspect/boundary_traction/interface.h>
 #include <aspect/mesh_refinement/interface.h>
-#include <aspect/termination_criteria/interface.h>
+#include <aspect/time_stepping/interface.h>
 #include <aspect/postprocess/interface.h>
 #include <aspect/adiabatic_conditions/interface.h>
+#include <aspect/particle/world.h>
 
 #include <boost/iostreams/tee.hpp>
 #include <boost/iostreams/stream.hpp>
@@ -76,18 +74,6 @@ namespace aspect
 {
   using namespace dealii;
 
-#if DEAL_II_VERSION_GTE(9,1,0)
-  /**
-   * The ConstraintMatrix class was deprecated in deal.II 9.1 in favor
-   * of AffineConstraints. To make the name available for ASPECT
-   * nonetheless, use a `using` declaration. This injects the name
-   * into the `aspect` namespace, where it is visible before the
-   * deprecated name in the `dealii` namespace, thereby suppressing
-   * the deprecation message.
-   */
-  using ConstraintMatrix = class dealii::AffineConstraints<double>;
-#endif
-
   template <int dim>
   class MeltHandler;
 
@@ -96,6 +82,9 @@ namespace aspect
 
   template <int dim>
   class StokesMatrixFreeHandler;
+
+  template <int dim, int velocity_degree>
+  class StokesMatrixFreeHandlerImplementation;
 
   namespace MeshDeformation
   {
@@ -131,6 +120,50 @@ namespace aspect
     template <int dim>      class Interface;
     template <int dim>      class Manager;
   }
+
+  struct DefectCorrectionResiduals
+  {
+    double initial_residual;
+    double velocity_residual;
+    double pressure_residual;
+    double residual;
+    double residual_old;
+    double switch_initial_residual;
+    double newton_residual_for_derivative_scaling_factor;
+    std::pair<double,double> stokes_residuals;
+  };
+
+  /**
+   * A data structure with all properties relevant to compute angular momentum and rotation.
+   */
+  template <int dim>
+  struct RotationProperties
+  {
+    RotationProperties()
+      :
+      scalar_moment_of_inertia(numbers::signaling_nan<double>()),
+      scalar_angular_momentum(numbers::signaling_nan<double>()),
+      scalar_rotation(numbers::signaling_nan<double>()),
+      tensor_moment_of_inertia(numbers::signaling_nan<SymmetricTensor<2,dim>>()),
+      tensor_angular_momentum(numbers::signaling_nan<Tensor<1,dim>>()),
+      tensor_rotation(numbers::signaling_nan<Tensor<1,dim>>())
+    {};
+
+    /**
+     * Scalar properties for the two-dimensional case
+     * with a fixed rotation axis (z).
+     */
+    double scalar_moment_of_inertia;
+    double scalar_angular_momentum;
+    double scalar_rotation;
+
+    /**
+     * Tensor properties for the three-dimensional case.
+     */
+    SymmetricTensor<2,dim> tensor_moment_of_inertia;
+    Tensor<1,dim> tensor_angular_momentum;
+    Tensor<1,dim> tensor_rotation;
+  };
 
   /**
    * This is the main class of ASPECT. It implements the overall simulation
@@ -206,12 +239,12 @@ namespace aspect
       /**
        * Import Nonlinear Solver type.
        */
-      typedef typename Parameters<dim>::NonlinearSolver NonlinearSolver;
+      using NonlinearSolver = typename Parameters<dim>::NonlinearSolver;
 
       /**
        * Import nullspace removal type.
        */
-      typedef typename Parameters<dim>::NullspaceRemoval NullspaceRemoval;
+      using NullspaceRemoval = typename Parameters<dim>::NullspaceRemoval;
 
 
       /**
@@ -441,14 +474,14 @@ namespace aspect
        * conditions that do not change over time. This function is used by
        * setup_dofs();
        */
-      void compute_initial_velocity_boundary_constraints (ConstraintMatrix &constraints);
+      void compute_initial_velocity_boundary_constraints (AffineConstraints<double> &constraints);
 
       /**
        * Fill the given @p constraints with constraints coming from the velocity boundary
        * conditions that do can change over time. This function is used by
        * compute_current_constraints().
        */
-      void compute_current_velocity_boundary_constraints (ConstraintMatrix &constraints);
+      void compute_current_velocity_boundary_constraints (AffineConstraints<double> &constraints);
 
       /**
        * Given the 'constraints' member that contains all constraints that are
@@ -531,6 +564,18 @@ namespace aspect
        * This function implements one scheme for the various
        * steps necessary to assemble and solve the nonlinear problem.
        *
+       * The `no Advection, single Stokes' scheme only solves the Stokes system and
+       * ignores compositions and the temperature equation.
+       *
+       * This function is implemented in
+       * <code>source/simulator/solver_schemes.cc</code>.
+       */
+      void solve_no_advection_single_stokes ();
+
+      /**
+       * This function implements one scheme for the various
+       * steps necessary to assemble and solve the nonlinear problem.
+       *
        * The `first timestep only, single Stokes' scheme only solves the Stokes system,
        * for the initial timestep. This results in a `steady state' velocity field for
        * particle calculations.
@@ -567,6 +612,49 @@ namespace aspect
        * <code>source/simulator/solver_schemes.cc</code>.
        */
       void solve_single_advection_iterated_stokes ();
+
+      /**
+       * This function implements one scheme for the various
+       * steps necessary to assemble and solve the nonlinear problem.
+       *
+       * The `no Advection, iterated defect correction Stokes' scheme
+       * does not solve the temperature and composition equations
+       * but only iterates out the solution of the Stokes
+       * equation using Defect Correction (DC) Picard iterations.
+       *
+       * This function is implemented in
+       * <code>source/simulator/solver_schemes.cc</code>.
+       */
+      void solve_no_advection_iterated_defect_correction_stokes ();
+
+      /**
+       * This function implements one scheme for the various
+       * steps necessary to assemble and solve the nonlinear problem.
+       *
+       * The `single Advection, iterated defect correction Stokes' scheme
+       * solves the temperature and composition equations once at the beginning
+       * of each time step and then iterates out the solution of the Stokes
+       * equation using Defect Correction (DC) Picard iterations.
+       *
+       * This function is implemented in
+       * <code>source/simulator/solver_schemes.cc</code>.
+       */
+      void solve_single_advection_iterated_defect_correction_stokes ();
+
+      /**
+       * This function implements one scheme for the various
+       * steps necessary to assemble and solve the nonlinear problem.
+       *
+       * The `iterated Advection and defect correction Stokes' scheme
+       * iterates over both the temperature and composition equations
+       * and the Stokes equations at the same time. The Stokes equation
+       * is iterated out using the Defect Correction (DC) form of the
+       * Picard iterations.
+       *
+       * This function is implemented in
+       * <code>source/simulator/solver_schemes.cc</code>.
+       */
+      void solve_iterated_advection_and_defect_correction_stokes ();
 
       /**
        * This function implements one scheme for the various
@@ -645,7 +733,8 @@ namespace aspect
        * <code>source/simulator/assembly.cc</code>.
        */
       void build_advection_preconditioner (const AdvectionField &advection_field,
-                                           aspect::LinearAlgebra::PreconditionILU &preconditioner);
+                                           aspect::LinearAlgebra::PreconditionILU &preconditioner,
+                                           const double diagonal_strengthening);
 
       /**
        * Initiate the assembly of the Stokes matrix and right hand side.
@@ -701,6 +790,20 @@ namespace aspect
        */
       double assemble_and_solve_stokes (const bool compute_initial_residual = false,
                                         double *initial_nonlinear_residual = nullptr);
+
+      /**
+       * Assemble and solve the defect correction form of the Stokes equation.
+       * This function takes a structure of DefectCorrectionResiduals which
+       * contains information about different residuals. The information in
+       * this structure is updated by this function. The parameter use_picard
+       * forces the use of the defect correction Picard iteration, if set to 'true' no
+       * Newton derivatives are added to the matrix.
+       *
+       * This function is implemented in
+       * <code>source/simulator/solver_schemes.cc</code>.
+       */
+      void assemble_and_solve_defect_correction_Stokes(DefectCorrectionResiduals &dcr,
+                                                       const bool use_picard);
 
       /**
        * Initiate the assembly of one advection matrix and right hand side and
@@ -892,6 +995,17 @@ namespace aspect
        * @{
        */
       /**
+       * Determine which of the components of our finite-element
+       * system couple to each other. Depending on which equations
+       * are solved and which solver is used this varies widely.
+       *
+       * This function is implemented in
+       * <code>source/simulator/core.cc</code>.
+       */
+      Table<2,DoFTools::Coupling>
+      setup_system_matrix_coupling () const;
+
+      /**
        * Set up the size and structure of the matrix used to store the
        * elements of the linear system.
        *
@@ -949,14 +1063,25 @@ namespace aspect
       /**
        * Determine, based on the run-time parameters of the current simulation,
        * which functions need to be called in order to assemble linear systems,
-       * matrices, and right hand side vectors. This function handles the
-       * default operation mode of ASPECT, i.e. without considering two-phase
-       * flow, or Newton solvers.
+       * matrices, and right hand side vectors for the advection. This function
+       * is used by both the default full Stokes solver and the Newton solvers,
+       * but not by the two-phase flow solver.
        *
        * This function is implemented in
        * <code>source/simulator/assembly.cc</code>.
        */
-      void set_default_assemblers ();
+      void set_advection_assemblers ();
+
+      /**
+       * Determine, based on the run-time parameters of the current simulation,
+       * which functions need to be called in order to assemble linear systems,
+       * matrices, and right hand side vectors for the default full Stokes solver
+       * i.e. without considering two-phase flow, or Newton solvers.
+       *
+       * This function is implemented in
+       * <code>source/simulator/assembly.cc</code>.
+       */
+      void set_stokes_assemblers ();
 
       /**
        * Initiate the assembly of the preconditioner for the Stokes system.
@@ -1066,7 +1191,7 @@ namespace aspect
        * $h_i \int g / |\Omega|$.
        *
        * The purpose of this function is described in the second paper on the
-       * numerical methods in Aspect.
+       * numerical methods in ASPECT.
        *
        * This function is implemented in
        * <code>source/simulator/helper_functions.cc</code>.
@@ -1242,6 +1367,19 @@ namespace aspect
       void compute_reactions ();
 
       /**
+       * Update the indicated block of the solution vector with the
+       * corresponding block of the handed over @p distributed_vector. Also
+       * update reaction_vector with the corresponding block of @p
+       * distributed_reaction_vector.
+       *
+       * This function is implemented in
+       * <code>source/simulator/helper_functions.cc</code>.
+       */
+      void update_solution_vectors_with_reaction_results (const unsigned int block_index,
+                                                          const LinearAlgebra::BlockVector &distributed_vector,
+                                                          const LinearAlgebra::BlockVector &distributed_reaction_vector);
+
+      /**
        * Initialize the current linearization point vector from the old
        * solution vector(s). Depending on the time of the call this
        * can be simply a copy of the solution of the last timestep,
@@ -1252,7 +1390,6 @@ namespace aspect
        * <code>source/simulator/helper_functions.cc</code>.
        */
       void initialize_current_linearization_point ();
-
 
       /**
        * Interpolate material model outputs onto an advection field (temperature
@@ -1301,7 +1438,7 @@ namespace aspect
        * @note: Rotational modes are currently not handled and don't appear to
        * require constraints so far.
        */
-      void setup_nullspace_constraints(ConstraintMatrix &constraints);
+      void setup_nullspace_constraints(AffineConstraints<double> &constraints);
 
 
       /**
@@ -1319,6 +1456,25 @@ namespace aspect
                             LinearAlgebra::BlockVector &tmp_distributed_stokes);
 
       /**
+       * Compute the angular momentum and other rotation properties
+       * of the velocities in the given solution vector.
+       *
+       * @param use_constant_density determines whether to use a constant
+       * density (which corresponds to computing a net rotation instead of net
+       * angular momentum).
+       * @param solution Solution vector to compute the properties for.
+       * @param limit_to_top_faces allows to only compute the net angular momentum
+       * (or net rotation) of the top surface.
+       *
+       * This function is implemented in
+       * <code>source/simulator/nullspace.cc</code>.
+       */
+      RotationProperties<dim>
+      compute_net_angular_momentum(const bool use_constant_density,
+                                   const LinearAlgebra::BlockVector &solution,
+                                   const bool limit_to_top_faces = false) const;
+
+      /**
        * Remove the angular momentum of the given vector
        *
        * @param use_constant_density determines whether to use a constant
@@ -1327,13 +1483,17 @@ namespace aspect
        * @param relevant_dst locally relevant vector for the whole FE, will be
        * filled at the end.
        * @param tmp_distributed_stokes only contains velocity and pressure.
+       * @param limit_to_top_faces allows to only remove the net angular momentum
+       * (or net rotation) of the top surface. This can be useful to compare surface
+       * motions against plate reconstructions in no net rotation reference frames.
        *
        * This function is implemented in
        * <code>source/simulator/nullspace.cc</code>.
        */
       void remove_net_angular_momentum( const bool use_constant_density,
                                         LinearAlgebra::BlockVector &relevant_dst,
-                                        LinearAlgebra::BlockVector &tmp_distributed_stokes);
+                                        LinearAlgebra::BlockVector &tmp_distributed_stokes,
+                                        const bool limit_to_top_faces = false);
 
       /**
        * Offset the boundary id of all faces located on an outflow boundary
@@ -1416,14 +1576,14 @@ namespace aspect
       void maybe_write_timing_output () const;
 
       /**
-       * Check if a checkpoint should be written in this timestep. Is so create
+       * Check if a checkpoint should be written in this timestep. If so create
        * one. Returns whether a checkpoint was written.
        *
        * This function is implemented in
        * <code>source/simulator/helper_functions.cc</code>.
        */
       bool maybe_write_checkpoint (const time_t last_checkpoint_time,
-                                   const std::pair<bool,bool> termination_output);
+                                   const bool force_writing_checkpoint);
 
       /**
        * Check if we should do an initial refinement cycle in this timestep.
@@ -1455,16 +1615,13 @@ namespace aspect
                               unsigned int &max_refinement_level);
 
       /**
-       * Compute the size of the next time step from the mesh size and the
-       * velocity on each cell. The computed time step has to satisfy the CFL
-       * number chosen in the input parameter file on each cell of the mesh.
-       * If specified in the parameter file, the time step will be the minimum
-       * of the convection *and* conduction time steps.
+       * Advance the current time by the given @p step_size and update the
+       * solution vectors as needed.
        *
        * This function is implemented in
        * <code>source/simulator/helper_functions.cc</code>.
        */
-      double compute_time_step () const;
+      void advance_time (const double step_size);
 
       /**
        * Compute the artificial diffusion coefficient value on a cell given
@@ -1676,8 +1833,8 @@ namespace aspect
        */
       std::ofstream log_file_stream;
 
-      typedef boost::iostreams::tee_device<std::ostream, std::ofstream> TeeDevice;
-      typedef boost::iostreams::stream< TeeDevice > TeeStream;
+      using TeeDevice = boost::iostreams::tee_device<std::ostream, std::ofstream>;
+      using TeeStream = boost::iostreams::stream< TeeDevice >;
 
       TeeDevice iostream_tee_device;
       TeeStream iostream_tee_stream;
@@ -1698,6 +1855,23 @@ namespace aspect
        * Simulator::output_statistics() function.
        */
       TableHandler                        statistics;
+
+      /**
+       * The following two variables keep track which parts of the statistics
+       * object have already been written. This is because the TableHandler
+       * class has no way to keep track what it has already written, and so
+       * we can not just append the last row of the table to the output
+       * file. Rather, we keep track how many bytes we already wrote,
+       * and a hash of what they contained, and if these so-many bytes have
+       * not changed between the previous and current write operation, then
+       * we only open the file in 'append' mode to add the new bytes from the
+       * last row. If what we would write now has changed from what we wrote
+       * back then in the first so-many bytes (e.g., because column widths of
+       * the table have changed), then we just replace the previous file by
+       * the current table contents in their entirety.
+       */
+      std::size_t                         statistics_last_write_size;
+      std::size_t                         statistics_last_hash;
 
       mutable TimerOutput                 computing_timer;
 
@@ -1728,10 +1902,23 @@ namespace aspect
       InitialComposition::Manager<dim>                                        initial_composition_manager;
       InitialTemperature::Manager<dim>                                        initial_temperature_manager;
       const std::unique_ptr<AdiabaticConditions::Interface<dim> >             adiabatic_conditions;
+#ifdef ASPECT_WITH_WORLD_BUILDER
       const std::unique_ptr<WorldBuilder::World>                              world_builder;
+#endif
       BoundaryVelocity::Manager<dim>                                          boundary_velocity_manager;
       std::map<types::boundary_id,std::unique_ptr<BoundaryTraction::Interface<dim> > > boundary_traction;
       const std::unique_ptr<BoundaryHeatFlux::Interface<dim> >                boundary_heat_flux;
+
+      /**
+       * The world holding the particles
+       */
+      std::unique_ptr<Particle::World<dim> > particle_world;
+
+      /**
+       * A copy of the particle handler to reset the particles
+       * when repeating a time step.
+       */
+      dealii::Particles::ParticleHandler<dim> particle_handler_copy;
 
       /**
        * @}
@@ -1751,10 +1938,10 @@ namespace aspect
        */
 
       /**
-       * @name Variables related to simulation termination
+       * @name Variables related to simulation time stepping
        * @{
        */
-      TerminationCriteria::Manager<dim>                         termination_manager;
+      TimeStepping::Manager<dim>                                time_stepping_manager;
       /**
        * @}
        */
@@ -1806,8 +1993,8 @@ namespace aspect
        * 'constraints' is computed in setup_dofs(), 'current_constraints' is
        * done in compute_current_constraints().
        */
-      ConstraintMatrix                                          constraints;
-      ConstraintMatrix                                          current_constraints;
+      AffineConstraints<double>                                          constraints;
+      AffineConstraints<double>                                          current_constraints;
 
       /**
        * A place to store the latest correction computed by normalize_pressure().
@@ -1911,6 +2098,8 @@ namespace aspect
       friend class MeshDeformation::MeshDeformationHandler<dim>;   // MeshDeformationHandler needs access to the internals of the Simulator
       friend class VolumeOfFluidHandler<dim>; // VolumeOfFluidHandler needs access to the internals of the Simulator
       friend class StokesMatrixFreeHandler<dim>;
+      template <int dimension, int velocity_degree>
+      friend class StokesMatrixFreeHandlerImplementation;
       friend struct Parameters<dim>;
   };
 }

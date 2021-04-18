@@ -1,5 +1,5 @@
 /*
- Copyright (C) 2015 - 2017 by the authors of the ASPECT code.
+ Copyright (C) 2015 - 2019 by the authors of the ASPECT code.
 
  This file is part of ASPECT.
 
@@ -48,9 +48,8 @@ namespace aspect
            * Returns the weight of one cell, which is interpreted as the probability
            * to generate particles in this cell.
            */
-          virtual
           double
-          get_cell_weight (typename DoFHandler<dim>::active_cell_iterator &cell) const;
+          get_cell_weight (const typename DoFHandler<dim>::active_cell_iterator &cell) const override;
       };
 
     }

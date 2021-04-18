@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2011 - 2017 by the authors of the ASPECT code.
+  Copyright (C) 2011 - 2019 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -52,13 +52,14 @@ namespace aspect
         /**
          * Read the parameters this class declares from the parameter file.
          */
-        virtual
         void
-        parse_parameters (ParameterHandler &prm);
+        parse_parameters (ParameterHandler &prm) override;
 
-        virtual
+        /**
+         * Evaluate statistics.
+         */
         std::pair<std::string,std::string>
-        execute (TableHandler &statistics);
+        execute (TableHandler &statistics) override;
 
         /**
          * Export core data stored in this object. Doing this only because the boundary
@@ -78,14 +79,12 @@ namespace aspect
         /**
          * Save the state of this object.
          */
-        virtual
-        void save (std::map<std::string, std::string> &status_strings) const;
+        void save (std::map<std::string, std::string> &status_strings) const override;
 
         /**
          * Restore the state of the object.
          */
-        virtual
-        void load (const std::map<std::string, std::string> &status_strings);
+        void load (const std::map<std::string, std::string> &status_strings) override;
 
       private:
         /**

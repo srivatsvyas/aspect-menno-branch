@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2019 by the authors of the ASPECT code.
+  Copyright (C) 2019 - 2020 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -42,7 +42,7 @@ namespace aspect
       public:
         explicit ElasticAdditionalOutputs(const unsigned int n_points);
 
-        virtual std::vector<double> get_nth_output(const unsigned int idx) const;
+        std::vector<double> get_nth_output(const unsigned int idx) const override;
 
         /**
          * Elastic shear moduli at the evaluation points passed to
@@ -107,17 +107,31 @@ namespace aspect
            * Return the values of the elastic shear moduli for each composition used in the
            * rheology model.
            */
-          std::vector<double>
+          const std::vector<double> &
           get_elastic_shear_moduli () const;
 
           /**
            * Given the (viscous or visco-plastic) viscosity and the shear modulus, compute the viscoelastic
-           * viscosity.
+           * viscosity (eqn 28 in Moresi et al., 2003, J. Comp. Phys.).
            */
           double
           calculate_viscoelastic_viscosity (const double viscosity,
                                             const double shear_modulus) const;
 
+          /**
+           * Calculate the square root of the second moment invariant for the deviatoric
+           * strain rate tensor, including viscoelastic stresses.
+           */
+          double
+          calculate_viscoelastic_strain_rate (const SymmetricTensor<2,dim> &strain_rate,
+                                              const SymmetricTensor<2,dim> &stress,
+                                              const double shear_modulus) const;
+
+          /**
+           * Compute the elastic time step.
+           */
+          double
+          elastic_timestep () const;
 
         private:
           /**
@@ -146,12 +160,6 @@ namespace aspect
            * Double for fixed elastic time step value, read from parameter file
            */
           double fixed_elastic_time_step;
-
-          /**
-           * Compute the elastic time step.
-           */
-          double
-          elastic_timestep () const;
       };
     }
   }

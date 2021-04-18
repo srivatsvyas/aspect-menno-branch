@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2011 - 2018 by the authors of the ASPECT code.
+  Copyright (C) 2011 - 2020 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -18,16 +18,26 @@
   <http://www.gnu.org/licenses/>.
 */
 
-#ifdef ASPECT_USE_WORLD_BUILDER
+#include <aspect/global.h>
+
+#ifdef ASPECT_WITH_WORLD_BUILDER
 #include <aspect/initial_composition/world_builder.h>
 #include <aspect/geometry_model/interface.h>
 #include <world_builder/world.h>
+#include <aspect/citation_info.h>
 
 
 namespace aspect
 {
   namespace InitialComposition
   {
+    template <int dim>
+    void
+    WorldBuilder<dim>::
+    initialize()
+    {
+      CitationInfo::add("GWB");
+    }
 
     template <int dim>
     double
@@ -35,7 +45,7 @@ namespace aspect
     initial_composition (const Point<dim> &position, const unsigned int n_comp) const
     {
       return this->get_world_builder().composition(Utilities::convert_point_to_array(position),
-                                                   this->get_geometry_model().depth(position),
+                                                   -this->get_geometry_model().height_above_reference_surface(position),
                                                    n_comp);
     }
 

@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2014 - 2017 by the authors of the ASPECT code.
+  Copyright (C) 2014 - 2019 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -23,6 +23,7 @@
 #define _aspect_gravity_model_function_h
 
 #include <aspect/gravity_model/interface.h>
+#include <aspect/simulator_access.h>
 
 #include <deal.II/base/parsed_function.h>
 
@@ -39,7 +40,7 @@ namespace aspect
      * @ingroup GravityModels
      */
     template <int dim>
-    class Function : public Interface<dim>
+    class Function : public Interface<dim>, public SimulatorAccess<dim>
     {
       public:
         /**
@@ -48,10 +49,17 @@ namespace aspect
         Function ();
 
         /**
+         * A function that is called at the beginning of each time step to
+         * indicate what the model time is for which the gravity will
+         * next be evaluated. For the current class, the function passes to
+         * the parsed function what the current time is.
+         */
+        void update () override;
+
+        /**
          * Return the gravity vector as a function of position.
          */
-        virtual
-        Tensor<1,dim> gravity_vector (const Point<dim> &position) const;
+        Tensor<1,dim> gravity_vector (const Point<dim> &position) const override;
 
         /**
          * Declare the parameters this class takes through input files. The
@@ -69,9 +77,8 @@ namespace aspect
          * parameters. Consequently, derived classes do not have to overload
          * this function if they do not take any runtime parameters.
          */
-        virtual
         void
-        parse_parameters (ParameterHandler &prm);
+        parse_parameters (ParameterHandler &prm) override;
 
       private:
         /**

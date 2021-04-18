@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2015 - 2017 by the authors of the ASPECT code.
+  Copyright (C) 2015 - 2019 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -60,9 +60,8 @@ namespace aspect
          * provides an error indicator. This vector will already have the
          * correct size when the function is called.
          */
-        virtual
         void
-        execute (Vector<float> &error_indicators) const;
+        execute (Vector<float> &error_indicators) const override;
     };
   }
 }

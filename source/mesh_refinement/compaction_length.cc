@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2015 - 2018 by the authors of the ASPECT code.
+  Copyright (C) 2015 - 2020 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -50,49 +50,45 @@ namespace aspect
       MaterialModel::MaterialModelOutputs<dim> out(quadrature.size(), this->n_compositional_fields());
       MeltHandler<dim>::create_material_model_outputs(out);
 
-      for (typename DoFHandler<dim>::active_cell_iterator
-           cell = this->get_dof_handler().begin_active();
-           cell != this->get_dof_handler().end(); ++cell)
-        {
-          if (cell->is_locally_owned())
-            {
-              bool refine = false;
-              bool clear_coarsen = false;
+      for (const auto &cell : this->get_dof_handler().active_cell_iterators())
+        if (cell->is_locally_owned())
+          {
+            bool refine = false;
+            bool clear_coarsen = false;
 
-              fe_values.reinit(cell);
-              in.reinit(fe_values, cell, this->introspection(), this->get_solution(), true);
-              this->get_material_model().evaluate(in, out);
+            fe_values.reinit(cell);
+            in.reinit(fe_values, cell, this->introspection(), this->get_solution(), true);
+            this->get_material_model().evaluate(in, out);
 
-              MaterialModel::MeltOutputs<dim> *melt_out = out.template get_additional_output<MaterialModel::MeltOutputs<dim> >();
-              AssertThrow(melt_out != nullptr,
-                          ExcMessage("Need MeltOutputs from the material model for computing the melt properties."));
+            MaterialModel::MeltOutputs<dim> *melt_out = out.template get_additional_output<MaterialModel::MeltOutputs<dim> >();
+            AssertThrow(melt_out != nullptr,
+                        ExcMessage("Need MeltOutputs from the material model for computing the melt properties."));
 
-              // for each composition dof, check if the compaction length exceeds the cell size
-              for (unsigned int i=0; i<this->get_fe().base_element(this->introspection().base_elements.compositional_fields).dofs_per_cell; ++i)
-                {
-                  const double compaction_length = std::sqrt((out.viscosities[i] + 4./3. * melt_out->compaction_viscosities[i])
-                                                             * melt_out->permeabilities[i] / melt_out->fluid_viscosities[i]);
+            // for each composition dof, check if the compaction length exceeds the cell size
+            for (unsigned int i=0; i<this->get_fe().base_element(this->introspection().base_elements.compositional_fields).dofs_per_cell; ++i)
+              {
+                const double compaction_length = std::sqrt((out.viscosities[i] + 4./3. * melt_out->compaction_viscosities[i])
+                                                           * melt_out->permeabilities[i] / melt_out->fluid_viscosities[i]);
 
-                  // If the compaction length exceeds the cell diameter anywhere in the cell, cell is marked for refinement.
-                  // Do not apply any refinement if the porosity is so small that melt can not migrate.
-                  if (compaction_length < 2.0 * cells_per_compaction_length * cell->minimum_vertex_distance()
-                      && this->get_melt_handler().is_melt_cell(cell))
-                    clear_coarsen = true;
+                // If the compaction length exceeds the cell diameter anywhere in the cell, cell is marked for refinement.
+                // Do not apply any refinement if the porosity is so small that melt can not migrate.
+                if (compaction_length < 2.0 * cells_per_compaction_length * cell->minimum_vertex_distance()
+                    && this->get_melt_handler().is_melt_cell(cell))
+                  clear_coarsen = true;
 
-                  if (compaction_length < cells_per_compaction_length * cell->minimum_vertex_distance()
-                      && this->get_melt_handler().is_melt_cell(cell))
-                    {
-                      refine = true;
-                      break;
-                    }
-                }
+                if (compaction_length < cells_per_compaction_length * cell->minimum_vertex_distance()
+                    && this->get_melt_handler().is_melt_cell(cell))
+                  {
+                    refine = true;
+                    break;
+                  }
+              }
 
-              if (clear_coarsen)
-                cell->clear_coarsen_flag ();
-              if (refine)
-                cell->set_refine_flag ();
-            }
-        }
+            if (clear_coarsen)
+              cell->clear_coarsen_flag ();
+            if (refine)
+              cell->set_refine_flag ();
+          }
     }
 
     template <int dim>
@@ -105,7 +101,7 @@ namespace aspect
         prm.enter_subsection("Compaction length");
         {
           prm.declare_entry("Mesh cells per compaction length", "1.0",
-                            Patterns::Double (0),
+                            Patterns::Double (0.),
                             "The desired ratio between compaction length and size of the "
                             "mesh cells, or, in other words, how many cells the mesh should "
                             "(at least) have per compaction length. Every cell where this "

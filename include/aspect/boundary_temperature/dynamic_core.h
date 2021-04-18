@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2011 - 2018 by the authors of the ASPECT code.
+  Copyright (C) 2011 - 2019 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -48,8 +48,8 @@ namespace aspect
          * Entropy for specific heat, radioactive heating, gravitational contribution,
          * adiabatic contribution, latent heat, and heat solution. These entropy terms are not
          * used for solving the core evolution. However, the total excess entropy
-         * (dE = Es*dT/dt+Er+El*dR/dt+Eg*dR/dt+Eh*dR/dt-Ek) is useful to determin the core is active or not.
-         * For dE>0, the core is likely to be active and generating magnetic field. These varialbes are updated each time step as well.
+         * (dE = Es*dT/dt+Er+El*dR/dt+Eg*dR/dt+Eh*dR/dt-Ek) is useful to determine the core is active or not.
+         * For dE>0, the core is likely to be active and generating magnetic field. These variables are updated each time step as well.
          */
         double Es,Er,Eg,Ek,El,Eh;
 
@@ -99,7 +99,7 @@ namespace aspect
     {
       public:
         /**
-         * Construstor
+         * Constructor
          */
         DynamicCore();
 
@@ -113,9 +113,8 @@ namespace aspect
          *   temperature.
          * @param location The location of the point at which we ask for the temperature.
          **/
-        virtual
         double  boundary_temperature (const types::boundary_id            boundary_indicator,
-                                      const Point<dim>                    &location) const;
+                                      const Point<dim>                    &location) const override;
 
         /**
          * Return the minimal temperature on that part of the boundary
@@ -124,8 +123,7 @@ namespace aspect
          * This value is used in computing dimensionless numbers such as the
          * Nusselt number indicating heat flux.
          */
-        virtual
-        double minimal_temperature (const std::set<types::boundary_id> &fixed_boundary_ids) const;
+        double minimal_temperature (const std::set<types::boundary_id> &fixed_boundary_ids) const override;
 
         /**
          * Return the maximal temperature on that part of the boundary
@@ -134,8 +132,7 @@ namespace aspect
          * This value is used in computing dimensionless numbers such as the
          * Nusselt number indicating heat flux.
          */
-        virtual
-        double maximal_temperature (const std::set<types::boundary_id> &fixed_boundary_ids) const;
+        double maximal_temperature (const std::set<types::boundary_id> &fixed_boundary_ids) const override;
 
         /**
          * Declare the parameters this class takes through input files.
@@ -149,17 +146,14 @@ namespace aspect
          * Read the parameters this class declares from the parameter
          * file.
          */
-        virtual
         void
-        parse_parameters (ParameterHandler &prm);
+        parse_parameters (ParameterHandler &prm) override;
 
         /**
          * This function update the core-mantle boundary (CMB) temperature by
          * the core energy balance solver using the core-mantle boundary heat flux.
          */
-        virtual
-        void
-        update();
+        void update() override;
 
         /**
          * Pass core data to other modules
@@ -383,15 +377,15 @@ namespace aspect
          *    So that         Q+Qs*dT/dt+Qr+Qg*dR/dt*Ql*dR/dt=0
          * 3. The light component composition X depends on inner core radius (See function get_X() ),
          *    and core solidus may dependent on X as well.
-         *    This becomes a small nonliner problem. Directly iterate through the above three equations doesn't
+         *    This becomes a small nonlinear problem. Directly iterate through the above three equations doesn't
          *    converge well. Alternatively we solve the inner core radius by bisection method.
-         *    A sigle solution between fully liquid and fully solid core is expacted. Otherwise this function will throw exception and terminate.
+         *    A single solution between fully liquid and fully solid core is expected. Otherwise this function will throw exception and terminate.
          *
-         *    At Earth core condition, a inner core is forming at the center of the Earth and surrended by a liquid outter core.
-         *    However, the core solidus is influnced by light components (e.g. S) and its slope is very closed to core adiabatic. So there is an alternative
-         *    scenario that the crystialization happens first at the core mantle boundary instead of at the center, which is called a 'snowing core'
+         *    At Earth core condition, a inner core is forming at the center of the Earth and surrounded by a liquid outer core.
+         *    However, the core solidus is influenced by light components (e.g. S) and its slope is very closed to core adiabatic. So there is an alternative
+         *    scenario that the crystallization happens first at the core mantle boundary instead of at the center, which is called a 'snowing core'
          *    (Stewart, A. J., et al. (2007). "Mars: a new core-crystallization regime." Science 316(5829): 1323-1325.). This also
-         *    provides a valid solution for the slover. So the returning bool is set to true for normal core, and false for 'snowing core'.
+         *    provides a valid solution for the solver. So the returning bool is set to true for normal core, and false for 'snowing core'.
          *    TODO: The current code is only able to treat normal core scenario, treating 'snowing core' scenario may be possible and could be added.
          */
         bool solve_time_step(double &X, double &T, double &R);

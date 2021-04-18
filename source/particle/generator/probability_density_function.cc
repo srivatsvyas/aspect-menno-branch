@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2015 - 2019 by the authors of the ASPECT code.
+  Copyright (C) 2015 - 2020 by the authors of the ASPECT code.
 
  This file is part of ASPECT.
 
@@ -67,12 +67,15 @@ namespace aspect
         // Determine the starting weight of this process, which is the sum of
         // the weights of all processes with a lower rank
         double local_start_weight = 0.0;
-        MPI_Scan(&local_weight_integral, &local_start_weight, 1, MPI_DOUBLE, MPI_SUM, this->get_mpi_communicator());
-        local_start_weight -= local_weight_integral;
+        const int ierr = MPI_Exscan(&local_weight_integral, &local_start_weight, 1, MPI_DOUBLE, MPI_SUM, this->get_mpi_communicator());
+        AssertThrowMPI(ierr);
 
-        // Calculate start id and number of local particles
-        const types::particle_index start_id = llround(static_cast<double> (n_particles)  * local_start_weight / global_weight_integral);
-        const types::particle_index n_local_particles = llround(static_cast<double> (n_particles) * local_weight_integral / global_weight_integral);
+        // Calculate start id
+        const types::particle_index start_particle_id = llround(static_cast<double> (n_particles)  * local_start_weight / global_weight_integral);
+
+        // Calculate number of local particles
+        const types::particle_index end_particle_id = llround(static_cast<double> (n_particles)  * (local_start_weight + local_weight_integral) / global_weight_integral);
+        const types::particle_index n_local_particles = end_particle_id-start_particle_id;
 
         std::vector<unsigned int> particles_per_cell(this->get_triangulation().n_locally_owned_active_cells(),0);
 
@@ -102,10 +105,7 @@ namespace aspect
             // between their weight and the local weight integral
             unsigned int cell_index = 0;
             types::particle_index particles_created = 0;
-            typename DoFHandler<dim>::active_cell_iterator
-            cell = this->get_dof_handler().begin_active(),
-            endc = this->get_dof_handler().end();
-            for (; cell!=endc; ++cell)
+            for (const auto &cell : this->get_dof_handler().active_cell_iterators())
               if (cell->is_locally_owned())
                 {
                   const types::particle_index particles_to_create = llround(static_cast<double> (n_local_particles) *
@@ -118,7 +118,7 @@ namespace aspect
                 }
           }
 
-        generate_particles_in_subdomain(particles_per_cell,start_id,n_local_particles,particles);
+        generate_particles_in_subdomain(particles_per_cell,start_particle_id,n_local_particles,particles);
       }
 
       template <int dim>
@@ -130,10 +130,7 @@ namespace aspect
         double accumulated_cell_weight = 0.0;
 
         // compute the integral weight by quadrature
-        typename DoFHandler<dim>::active_cell_iterator
-        cell = this->get_dof_handler().begin_active(),
-        endc = this->get_dof_handler().end();
-        for (; cell!=endc; ++cell)
+        for (const auto &cell : this->get_dof_handler().active_cell_iterators())
           if (cell->is_locally_owned())
             {
               // get_cell_weight makes sure to return positive values
@@ -145,7 +142,7 @@ namespace aspect
 
       template <int dim>
       double
-      ProbabilityDensityFunction<dim>::get_cell_weight (typename DoFHandler<dim>::active_cell_iterator &cell) const
+      ProbabilityDensityFunction<dim>::get_cell_weight (const typename DoFHandler<dim>::active_cell_iterator &cell) const
       {
         // Evaluate function at all cell midpoints, sort cells according to weight
         const QMidpoint<dim> quadrature_formula;
@@ -187,9 +184,7 @@ namespace aspect
         // increase the complexity to O(N log(N)).
         std::vector<std::pair<Particles::internal::LevelInd, Particle<dim> > > local_particles;
         local_particles.reserve(n_local_particles);
-        for (typename DoFHandler<dim>::active_cell_iterator cell = this->get_dof_handler().begin_active();
-             cell!=this->get_dof_handler().end();
-             ++cell)
+        for (const auto &cell : this->get_dof_handler().active_cell_iterators())
           if (cell->is_locally_owned())
             {
               for (unsigned int i = 0; i < particles_per_cell[cell_index]; ++i)
@@ -214,7 +209,7 @@ namespace aspect
           prm.enter_subsection("Particles");
           {
             prm.declare_entry ("Number of particles", "1000",
-                               Patterns::Double (0),
+                               Patterns::Double (0.),
                                "Total number of particles to create (not per processor or per element). "
                                "The number is parsed as a floating point number (so that one can "
                                "specify, for example, '1e4' particles) but it is interpreted as "
@@ -245,7 +240,8 @@ namespace aspect
                                    "runs. Change to get a different distribution. In parallel "
                                    "computations the seed is further modified on each process "
                                    "to ensure different particle patterns on different "
-                                   "processes.");
+                                   "processes. Note that the number of particles per processor "
+                                   "is not affected by the seed.");
               }
               prm.leave_subsection();
             }

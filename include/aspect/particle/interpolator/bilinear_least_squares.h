@@ -1,5 +1,5 @@
 /*
- Copyright (C) 2017 by the authors of the ASPECT code.
+ Copyright (C) 2017 - 2019 by the authors of the ASPECT code.
 
  This file is part of ASPECT.
 
@@ -31,8 +31,9 @@ namespace aspect
     namespace Interpolator
     {
       /**
-       * Return the interpolated properties of all particles of the given cell using bilinear least squares method.
-       * Currently, only the two dimensional model is supported.
+       * Evaluate the properties of all particles of the given cell
+       * using a least squares projection onto the set of bilinear
+       * (or, in 3d, trilinear) functions.
        *
        * @ingroup ParticleInterpolators
        */
@@ -43,12 +44,11 @@ namespace aspect
           /**
            * Return the cell-wise evaluated properties of the bilinear least squares function at the positions.
            */
-          virtual
           std::vector<std::vector<double> >
           properties_at_points(const ParticleHandler<dim> &particle_handler,
                                const std::vector<Point<dim> > &positions,
                                const ComponentMask &selected_properties,
-                               const typename parallel::distributed::Triangulation<dim>::active_cell_iterator &cell) const;
+                               const typename parallel::distributed::Triangulation<dim>::active_cell_iterator &cell) const override;
 
           // avoid -Woverloaded-virtual:
           using Interface<dim>::properties_at_points;
@@ -63,17 +63,16 @@ namespace aspect
           /**
            * Read the parameters this class declares from the parameter file.
            */
-          virtual
           void
-          parse_parameters (ParameterHandler &prm);
+          parse_parameters (ParameterHandler &prm) override;
 
         private:
           /**
            * Variables related to a limiting scheme that prevents overshoot and
            * undershoot of interpolated particle properties based on global max
-           * and global min for each propery.
+           * and global min for each property.
            */
-          bool use_global_valued_limiter;
+          bool use_global_min_max_limiter;
 
           /**
            * For each interpolated particle property, a global max and global

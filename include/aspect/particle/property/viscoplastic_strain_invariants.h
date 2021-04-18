@@ -50,51 +50,57 @@ namespace aspect
           */
           ViscoPlasticStrainInvariant ();
 
-          virtual void initialize ();
+          void initialize () override;
 
 
           /**
           * @copydoc aspect::Particle::Property::Interface::initialize_one_particle_property()
           **/
-          virtual
           void
           initialize_one_particle_property (const Point<dim> &position,
-                                            std::vector<double> &particle_properties) const;
+                                            std::vector<double> &particle_properties) const override;
 
           /**
-          * @copydoc aspect::Particle::Property::Interface::update_one_particle_property()
+          * @copydoc aspect::Particle::Property::Interface::update_particle_property()
           **/
           virtual
           void
-          update_one_particle_property (const unsigned int data_position,
-                                        const Point<dim> &position,
-                                        const Vector<double> &solution,
-                                        const std::vector<Tensor<1,dim> > &gradients,
-                                        const ArrayView<double> &particle_properties) const;
+          update_particle_property (const unsigned int data_position,
+                                    const Vector<double> &solution,
+                                    const std::vector<Tensor<1,dim> > &gradients,
+                                    typename ParticleHandler<dim>::particle_iterator &particle) const override;
 
           /**
           * @copydoc aspect::Particle::Property::Interface::need_update()
           **/
           UpdateTimeFlags
-          need_update () const;
+          need_update () const override;
 
           /**
           * @copydoc aspect::Particle::Property::Interface::get_needed_update_flags()
           **/
-          virtual
           UpdateFlags
-          get_needed_update_flags () const;
+          get_needed_update_flags () const override;
 
           /**
           * @copydoc aspect::Particle::Property::Interface::get_property_information()
           **/
-          virtual
           std::vector<std::pair<std::string, unsigned int> >
-          get_property_information() const;
+          get_property_information() const override;
 
         private:
           unsigned int n_components;
 
+          /**
+           * An object that is used to compute the particle property. Since the
+           * object is expensive to create and is needed often it is kept as a
+           * member variable. Because it is changed inside a const member function
+           * (update_particle_property) it has to be mutable, but since it is
+           * only used inside that function and always set before being used
+           * that is not a problem. This implementation is not thread safe,
+           * but it is currently not used in a threaded context.
+           */
+          mutable MaterialModel::MaterialModelInputs<dim> material_inputs;
       };
     }
   }

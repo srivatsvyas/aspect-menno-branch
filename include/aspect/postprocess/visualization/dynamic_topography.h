@@ -33,10 +33,13 @@ namespace aspect
     namespace VisualizationPostprocessors
     {
       /**
-       * A class derived from DataPostprocessorScalar that computes a variable
-       * that represents the dynamic topography. This quantity, strictly
-       * speaking, only makes sense at the surface of the domain.
-       * Thus, the value is set to zero in all the cells inside of the domain.
+       * A class derived from DataPostprocessorScalar that computes a
+       * variable that represents the dynamic topography. This
+       * quantity, strictly speaking, only makes sense at the surface
+       * of the domain.  Thus, the value is set to zero in all the
+       * cells inside of the domain. Consider using the
+       * SurfaceDynamicTopography to only output the dynamic
+       * topography at the boundary of the domain.
        *
        * The member functions are all implementations of those declared in the
        * base class. See there for their meaning.
@@ -55,17 +58,15 @@ namespace aspect
            *
            * @copydoc DataPostprocessorScalar<dim>::evaluate_vector_field()
            */
-          virtual
           void
           evaluate_vector_field(const DataPostprocessorInputs::Vector<dim> &input_data,
-                                std::vector<Vector<double> > &computed_quantities) const;
+                                std::vector<Vector<double> > &computed_quantities) const override;
 
           /**
            * Register the other postprocessor that we need: DynamicTopography
            */
-          virtual
           std::list<std::string>
-          required_other_postprocessors() const;
+          required_other_postprocessors() const override;
       };
     }
   }

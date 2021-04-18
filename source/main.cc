@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2011 - 2019 by the authors of the ASPECT code.
+  Copyright (C) 2011 - 2020 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -206,10 +206,10 @@ void validate_shared_lib_list (const bool before_loading_shared_libs)
 
   // find everything that is interesting
   std::set<std::string> dealii_shared_lib_names;
-  for (std::set<std::string>::const_iterator p = shared_lib_names.begin();
-       p != shared_lib_names.end(); ++p)
-    if (p->find ("libdeal_II") != std::string::npos)
-      dealii_shared_lib_names.insert (*p);
+  for (const auto &p : shared_lib_names)
+    if (p.find ("libdeal_II") != std::string::npos ||
+        p.find ("libdeal.ii") != std::string::npos)
+      dealii_shared_lib_names.insert (p);
 
   // produce an error if we load deal.II more than once
   if (dealii_shared_lib_names.size() != 1)
@@ -218,9 +218,8 @@ void validate_shared_lib_list (const bool before_loading_shared_libs)
       error << "........................................................\n"
             << "ASPECT currently links against different versions of the\n"
             << "deal.II library, namely the ones at these locations:\n";
-      for (std::set<std::string>::const_iterator p = dealii_shared_lib_names.begin();
-           p != dealii_shared_lib_names.end(); ++p)
-        error << "  " << *p << '\n';
+      for (const auto &p : dealii_shared_lib_names)
+        error << "  " << p << '\n';
       error << "This can not work.\n\n";
 
       if (before_loading_shared_libs)
@@ -277,17 +276,17 @@ void possibly_load_shared_libs (const std::string &parameters)
       const std::vector<std::string>
       shared_libs_list = Utilities::split_string_list (shared_libs);
 
-      for (unsigned int i=0; i<shared_libs_list.size(); ++i)
+      for (const auto &shared_lib : shared_libs_list)
         {
           if (Utilities::MPI::this_mpi_process (MPI_COMM_WORLD) == 0)
             std::cout << "Loading shared library <"
-                      << shared_libs_list[i]
+                      << shared_lib
                       << ">" << std::endl;
 
-          void *handle = dlopen (shared_libs_list[i].c_str(), RTLD_LAZY);
+          void *handle = dlopen (shared_lib.c_str(), RTLD_LAZY);
           AssertThrow (handle != nullptr,
                        ExcMessage (std::string("Could not successfully load shared library <")
-                                   + shared_libs_list[i] + ">. The operating system reports "
+                                   + shared_lib + ">. The operating system reports "
                                    + "that the error is this: <"
                                    + dlerror() + ">."));
 
@@ -397,14 +396,16 @@ read_parameter_file(const std::string &parameter_file_name)
         {
           input_as_string = read_until_end (std::cin);
           int size = input_as_string.size()+1;
-          MPI_Bcast (&size,
-                     1,
-                     MPI_INT,
-                     /*root=*/0, MPI_COMM_WORLD);
-          MPI_Bcast (const_cast<char *>(input_as_string.c_str()),
-                     size,
-                     MPI_CHAR,
-                     /*root=*/0, MPI_COMM_WORLD);
+          int ierr = MPI_Bcast (&size,
+                                1,
+                                MPI_INT,
+                                /*root=*/0, MPI_COMM_WORLD);
+          AssertThrowMPI(ierr);
+          ierr = MPI_Bcast (const_cast<char *>(input_as_string.c_str()),
+                            size,
+                            MPI_CHAR,
+                            /*root=*/0, MPI_COMM_WORLD);
+          AssertThrowMPI(ierr);
         }
       else
         {
@@ -413,14 +414,16 @@ read_parameter_file(const std::string &parameter_file_name)
           // text in, get it from processor 0, and copy it to
           // input_as_string
           int size;
-          MPI_Bcast (&size, 1,
-                     MPI_INT,
-                     /*root=*/0, MPI_COMM_WORLD);
+          int ierr = MPI_Bcast (&size, 1,
+                                MPI_INT,
+                                /*root=*/0, MPI_COMM_WORLD);
+          AssertThrowMPI(ierr);
 
           std::vector<char> p (size);
-          MPI_Bcast (p.data(), size,
-                     MPI_CHAR,
-                     /*root=*/0, MPI_COMM_WORLD);
+          ierr = MPI_Bcast (p.data(), size,
+                            MPI_CHAR,
+                            /*root=*/0, MPI_COMM_WORLD);
+          AssertThrowMPI(ierr);
           input_as_string = p.data();
         }
     }
@@ -468,7 +471,8 @@ parse_parameters (const std::string &input_as_string,
   // so, do the broadcast in integers
   {
     int isuccess = (success ? 1 : 0);
-    MPI_Bcast (&isuccess, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    const int ierr = MPI_Bcast (&isuccess, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    AssertThrowMPI(ierr);
     success = (isuccess == 1);
   }
 

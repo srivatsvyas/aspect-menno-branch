@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2011 - 2017 by the authors of the ASPECT code.
+  Copyright (C) 2011 - 2019 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -45,8 +45,7 @@ namespace aspect
         /**
          * Return the initial temperature as a function of position.
          */
-        virtual
-        double initial_temperature (const Point<dim> &position) const;
+        double initial_temperature (const Point<dim> &position) const override;
 
         /**
          * Declare the parameters this class takes through input files.
@@ -58,9 +57,8 @@ namespace aspect
         /**
          * Read the parameters this class declares from the parameter file.
          */
-        virtual
         void
-        parse_parameters (ParameterHandler &prm);
+        parse_parameters (ParameterHandler &prm) override;
 
       private:
         /**
@@ -68,15 +66,23 @@ namespace aspect
          * spherical shell. Historically, this was permanently set to 6 (hence
          * the class name SphericalHexagonalPerturbation) The default is 6 in
          * order to provide backwards compatibility.
-         *
+         */
+        unsigned int angular_mode;
+
+        /**
          * The rotation offset describes the number of degrees to rotate the
          * perturbation counterclockwise. Setting the rotation offset to 0
          * will cause one of the perturbations to point north/up. Rotation
          * offset is set to -45 degrees by default in order to provide
          * backwards compatibility.
          */
-        int angular_mode;
         double rotation_offset;
+
+        /**
+         * Outer radius.
+         */
+        double R1;
+
     };
 
 
@@ -99,8 +105,7 @@ namespace aspect
         /**
          * Return the initial temperature as a function of position.
          */
-        virtual
-        double initial_temperature (const Point<dim> &position) const;
+        double initial_temperature (const Point<dim> &position) const override;
 
         /**
          * Declare the parameters this class takes through input files.
@@ -112,9 +117,8 @@ namespace aspect
         /**
          * Read the parameters this class declares from the parameter file.
          */
-        virtual
         void
-        parse_parameters (ParameterHandler &prm);
+        parse_parameters (ParameterHandler &prm) override;
 
       private:
         double angle;
@@ -127,6 +131,16 @@ namespace aspect
 
         std::vector<double> radial_position;
         std::vector<double> geotherm;
+
+        /**
+         * Inner radius.
+         */
+        double R0;
+
+        /**
+         * Outer radius.
+         */
+        double R1;
     };
   }
 }

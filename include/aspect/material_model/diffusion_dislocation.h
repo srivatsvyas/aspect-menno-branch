@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 2011 - 2018 by the authors of the ASPECT code.
+  Copyright (C) 2011 - 2019 by the authors of the ASPECT code.
 
   This file is part of ASPECT.
 
@@ -23,6 +23,8 @@
 
 #include <aspect/material_model/interface.h>
 #include <aspect/simulator_access.h>
+#include <aspect/material_model/rheology/diffusion_creep.h>
+#include <aspect/material_model/rheology/dislocation_creep.h>
 
 namespace aspect
 {
@@ -80,8 +82,8 @@ namespace aspect
     {
       public:
 
-        virtual void evaluate(const MaterialModel::MaterialModelInputs<dim> &in,
-                              MaterialModel::MaterialModelOutputs<dim> &out) const;
+        void evaluate(const MaterialModel::MaterialModelInputs<dim> &in,
+                      MaterialModel::MaterialModelOutputs<dim> &out) const override;
 
         /**
          * Return whether the model is compressible or not.  Incompressibility
@@ -94,25 +96,29 @@ namespace aspect
          *
          * This material model is incompressible.
          */
-        virtual bool is_compressible () const;
+        bool is_compressible () const override;
 
-        virtual double reference_viscosity () const;
+        double reference_viscosity () const override;
 
         static
         void
         declare_parameters (ParameterHandler &prm);
 
-        virtual
         void
-        parse_parameters (ParameterHandler &prm);
+        parse_parameters (ParameterHandler &prm) override;
 
       private:
+        /**
+         * Objects for computing viscous creep viscosities.
+         */
+        Rheology::DiffusionCreep<dim> diffusion_creep;
+        Rheology::DislocationCreep<dim> dislocation_creep;
 
         double reference_T;
 
         /**
          * Defining a minimum strain rate stabilizes the viscosity calculation,
-         * which involves a division by the strain rate. Units: $1/s$.
+         * which involves a division by the strain rate. Units: 1/s.
          */
         double min_strain_rate;
         double min_visc;
@@ -137,18 +143,6 @@ namespace aspect
                                           const double &pressure,
                                           const double &temperature,
                                           const SymmetricTensor<2,dim> &strain_rate) const;
-
-
-        std::vector<double> prefactors_diffusion;
-        std::vector<double> stress_exponents_diffusion;
-        std::vector<double> grain_size_exponents_diffusion;
-        std::vector<double> activation_energies_diffusion;
-        std::vector<double> activation_volumes_diffusion;
-
-        std::vector<double> prefactors_dislocation;
-        std::vector<double> stress_exponents_dislocation;
-        std::vector<double> activation_energies_dislocation;
-        std::vector<double> activation_volumes_dislocation;
 
     };
 
