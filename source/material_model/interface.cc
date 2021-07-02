@@ -639,8 +639,10 @@ namespace aspect
 
               // then expand back to the quadrature points
               expansion_matrix.vmult (x, z);
-              for (unsigned int i=0; i<N; ++i)
+              for (unsigned int i=0; i<N; ++i){
+                Assert(x(i) > 0, ExcMessage("value should be larger than 0, but is " + std::to_string(x(i))));
                 values_out[i] = x(i);
+                }
 
               break;
             }

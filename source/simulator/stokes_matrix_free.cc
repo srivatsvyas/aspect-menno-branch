@@ -1225,7 +1225,7 @@ namespace aspect
       {
         Assert(local_element > 0.,
                ExcMessage("No diagonal entry in a positive definite operator "
-                          "should be zero or negative."));
+                          "should be zero or negative. The value is " + std::to_string(local_element) + "."));
         local_element = 1./local_element;
       }
   }
@@ -2516,12 +2516,25 @@ namespace aspect
                       for (unsigned int i=0; i<dofs_per_cell; ++i)
                         for (unsigned int j=0; j<dofs_per_cell; ++j)
                           {
+                            //Assert(cell_matrix(i,j) >= 0, ExcMessage("0. matrix cell should be larger than 0, but is " + std::to_string(cell_matrix(i,j)) 
+                            //+ ". Relevant values are viscosity=" + std::to_string(viscosity)  + ", symgrad_phi_u[i]*symgrad_phi_u[j]=" + std::to_string(symgrad_phi_u[i]*symgrad_phi_u[j]) 
+                            //+ ", JxW = " + std::to_string(2. * viscosity * (symgrad_phi_u[i]*symgrad_phi_u[j])*JxW) +  ", JxW = " + std::to_string(2. * viscosity * (symgrad_phi_u[i]*symgrad_phi_u[j])* JxW)));
                             cell_matrix(i,j) += 2. * viscosity * (symgrad_phi_u[i]*symgrad_phi_u[j])
                                                 * JxW;
+//if(cell_matrix(i,j) <= 0)
+//cell_matrix(i,j) = 1.0;
+                            //Assert(cell_matrix(i,j) > 0, ExcMessage("1. matrix cell should be larger than 0, but is " + std::to_string(cell_matrix(i,j)) 
+                            //+ ". Relevant values are viscosity=" + std::to_string(viscosity)  + ", symgrad_phi_u[i]*symgrad_phi_u[j]=" + std::to_string(symgrad_phi_u[i]*symgrad_phi_u[j]) 
+                            //+ ", JxW = " + std::to_string(JxW) + ", 2. * viscosity * (symgrad_phi_u[i]*symgrad_phi_u[j]) = " + std::to_string(2. * viscosity * (symgrad_phi_u[i]*symgrad_phi_u[j])) 
+                            //+  ", 2. * viscosity * (symgrad_phi_u[i]*symgrad_phi_u[j])* JxW = " + std::to_string(2. * viscosity * (symgrad_phi_u[i]*symgrad_phi_u[j])* JxW)));
 
                             if (is_compressible)
                               cell_matrix(i,j) +=  (-2./3.) * viscosity * (div_phi_u[i]*div_phi_u[j])
                                                    * JxW;
+
+                            //Assert(cell_matrix(i,j) > 0, ExcMessage("2. matrix cell should be larger than 0, but is " + std::to_string(cell_matrix(i,j))
+                            //+ ". Relevant values are viscosity=" + std::to_string(viscosity) + ", (div_phi_u[i]*div_phi_u[j])=" + std::to_string((div_phi_u[i]*div_phi_u[j]))
+                            //+ ", JxW = " + std::to_string(JxW)));
                           }
                     }
 
