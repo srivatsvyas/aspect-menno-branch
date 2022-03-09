@@ -52,9 +52,17 @@ namespace aspect
       in.temperature[i] = temperature;
       in.composition[i] = composition;
       in.strain_rate[i] = strain_rate;
+              // We only want to compute mass/volume fractions for fields that are chemical compositions.
+              std::vector<double> chemical_compositions;
+              const std::vector<typename Parameters<dim>::CompositionalFieldDescription> composition_descriptions = this->introspection().get_composition_descriptions();
+
+              for (unsigned int c=0; c<composition.size(); ++c)
+                if (composition_descriptions[c].type == Parameters<dim>::CompositionalFieldDescription::chemical_composition
+                    || composition_descriptions[c].type == Parameters<dim>::CompositionalFieldDescription::unspecified)
+                  chemical_compositions.push_back(composition[c]);
 
       const std::vector<double> volume_fractions
-        = MaterialUtilities::compute_composition_fractions(composition,
+        = MaterialUtilities::compute_composition_fractions(chemical_compositions,
                                                            rheology->get_volumetric_composition_mask());
 
       const IsostrainViscosities isostrain_viscosities
@@ -78,7 +86,16 @@ namespace aspect
     {
       Assert(in.n_evaluation_points() == 1, ExcInternalError());
 
-      const std::vector<double> volume_fractions = MaterialUtilities::compute_composition_fractions(in.composition[0], rheology->get_volumetric_composition_mask());
+                    // We only want to compute mass/volume fractions for fields that are chemical compositions.
+              std::vector<double> chemical_compositions;
+              const std::vector<typename Parameters<dim>::CompositionalFieldDescription> composition_descriptions = this->introspection().get_composition_descriptions();
+
+              for (unsigned int c=0; c<in.composition[0].size(); ++c)
+                if (composition_descriptions[c].type == Parameters<dim>::CompositionalFieldDescription::chemical_composition
+                    || composition_descriptions[c].type == Parameters<dim>::CompositionalFieldDescription::unspecified)
+                  chemical_compositions.push_back(in.composition[0][c]);
+
+      const std::vector<double> volume_fractions = MaterialUtilities::compute_composition_fractions(chemical_compositions, rheology->get_volumetric_composition_mask());
 
       /* The following handles phases in a similar way as in the 'evaluate' function.
        * Results then enter the calculation of plastic yielding.
@@ -179,7 +196,16 @@ namespace aspect
                                                   phase_function.n_phase_transitions_for_each_composition(),
                                                   eos_outputs);
 
-          const std::vector<double> volume_fractions = MaterialUtilities::compute_composition_fractions(in.composition[i], volumetric_compositions);
+	                // We only want to compute mass/volume fractions for fields that are chemical compositions.
+              std::vector<double> chemical_compositions;
+              const std::vector<typename Parameters<dim>::CompositionalFieldDescription> composition_descriptions = this->introspection().get_composition_descriptions();
+
+              for (unsigned int c=0; c<in.composition[i].size(); ++c)
+                if (composition_descriptions[c].type == Parameters<dim>::CompositionalFieldDescription::chemical_composition
+                    || composition_descriptions[c].type == Parameters<dim>::CompositionalFieldDescription::unspecified)
+                  chemical_compositions.push_back(in.composition[i][c]);
+
+          const std::vector<double> volume_fractions = MaterialUtilities::compute_composition_fractions(chemical_compositions, volumetric_compositions);
 
           // not strictly correct if thermal expansivities are different, since we are interpreting
           // these compositions as volume fractions, but the error introduced should not be too bad.

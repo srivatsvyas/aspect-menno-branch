@@ -524,7 +524,6 @@ namespace aspect
                                                 gradients);
         }
     }
-*/
 
 
     template <int dim>
