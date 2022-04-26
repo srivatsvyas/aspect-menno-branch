@@ -264,7 +264,7 @@ namespace aspect
         // the compositional fields representing strain are updated through the reaction terms.
         if (weakening_mechanism != none)
           {
-            AssertThrow((this->get_parameters().nonlinear_solver ==
+            /*AssertThrow((this->get_parameters().nonlinear_solver ==
                          Parameters<dim>::NonlinearSolver::single_Advection_single_Stokes
                          ||
                          this->get_parameters().nonlinear_solver ==
@@ -285,7 +285,7 @@ namespace aspect
                                    "'single Advection, iterated defect correction Stokes', and "
                                    "'no Advection, no Stokes' "
                                    "when strain weakening is enabled, because more than one nonlinear "
-                                   "advection iteration will result in the incorrect value of strain."));
+                                   "advection iteration will result in the incorrect value of strain."));*/
           }
 
 
