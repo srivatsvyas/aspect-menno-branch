@@ -903,9 +903,9 @@ namespace aspect
                      const std::vector<double> &parameter_values,
                      const enum CompositionalAveragingOperation &average_type)
       {
-        Assert(volume_fractions.size() == parameter_values.size(),
-               ExcMessage ("The volume fractions and parameter values vectors used for averaging "
-                           "have to have the same length!"));
+        //Assert(volume_fractions.size() == parameter_values.size(),
+        //       ExcMessage ("The volume fractions and parameter values vectors used for averaging "
+        //                   "have to have the same length!"));
 
         double averaged_parameter = 0.0;
 
