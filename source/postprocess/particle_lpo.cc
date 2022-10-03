@@ -242,7 +242,7 @@ namespace aspect
           std::vector<unsigned int> deformation_type;
           std::vector<double> volume_fraction_mineral;
           std::vector<std::vector<double>> volume_fractions_grains;
-          std::vector<std::vector<Tensor<2,3> > > a_cosine_matrices_grains;
+          std::vector<std::vector<Tensor<2,3>>> a_cosine_matrices_grains;
 
           Particle::Property::LPO<dim>::load_particle_data(lpo_data_position,
                                                            properties,
@@ -275,7 +275,7 @@ namespace aspect
 
 
           // write content file
-          std::vector<std::vector<std::vector<double> > > euler_angles;
+          std::vector<std::vector<std::vector<double>>> euler_angles;
           if (compute_raw_euler_angles == true)
             {
               euler_angles.resize(n_minerals);
@@ -366,7 +366,7 @@ namespace aspect
             }
           if (write_draw_volume_weighted_lpo.size() != 0)
             {
-              std::vector<std::vector<std::vector<double> >> weighted_euler_angles;
+              std::vector<std::vector<std::vector<double>>> weighted_euler_angles;
 
               weighted_euler_angles.resize(n_minerals);
               for (unsigned int mineral_i = 0; mineral_i < n_minerals; ++mineral_i)
@@ -380,7 +380,7 @@ namespace aspect
                 }
 
 
-              std::vector<std::vector<Tensor<2,3> > > weighted_a_cosine_matrices;
+              std::vector<std::vector<Tensor<2,3>>> weighted_a_cosine_matrices;
 
               if (compute_weighted_A_matrix == true)
                 {
@@ -486,10 +486,10 @@ namespace aspect
 
           // then continue with writing the master file
           background_thread_master = std::thread (&writer,
-                                                          filename_master,
-                                                          temporary_output_location,
-                                                          file_contents_master,
-                                                          false);
+                                                  filename_master,
+                                                  temporary_output_location,
+                                                  file_contents_master,
+                                                  false);
 
           if (write_raw_lpo.size() != 0)
             {
@@ -499,10 +499,10 @@ namespace aspect
 
               // then continue with writing our own data.
               background_thread_content_raw = std::thread (&writer,
-                                                                   filename_raw,
-                                                                   temporary_output_location,
-                                                                   file_contents_raw,
-                                                                   compress_lpo_data_files);
+                                                           filename_raw,
+                                                           temporary_output_location,
+                                                           file_contents_raw,
+                                                           compress_lpo_data_files);
             }
 
           if (write_draw_volume_weighted_lpo.size() != 0)
@@ -513,10 +513,10 @@ namespace aspect
 
               // then continue with writing our own data.
               background_thread_content_draw_volume_weighting = std::thread (&writer,
-                                                                                     filename_draw_volume_weighting,
-                                                                                     temporary_output_location,
-                                                                                     file_contents_draw_volume_weighting,
-                                                                                     compress_lpo_data_files);
+                                                                             filename_draw_volume_weighting,
+                                                                             temporary_output_location,
+                                                                             file_contents_draw_volume_weighting,
+                                                                             compress_lpo_data_files);
             }
         }
       else
@@ -541,7 +541,7 @@ namespace aspect
     }
 
     template<int dim>
-    std::vector<std::vector<double> >
+    std::vector<std::vector<double>>
     LPO<dim>::random_draw_volume_weighting(std::vector<double> fv,
                                            std::vector<std::vector<double>> angles) const
     {

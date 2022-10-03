@@ -51,7 +51,7 @@ namespace aspect
         point_spherical[1] = 0.0;
 
       Point<dim> euler_pole;
-      std::vector<Point<2> > polygon = {{-117./180.*M_PI, 32./180.*M_PI},
+      std::vector<Point<2>> polygon = {{-117./180.*M_PI, 32./180.*M_PI},
         {-100./180.*M_PI, 32./180.*M_PI},
         {-100./180.*M_PI, 58./180.*M_PI},
         {-137./180.*M_PI, 58./180.*M_PI}
