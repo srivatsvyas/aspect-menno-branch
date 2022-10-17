@@ -98,7 +98,7 @@ namespace aspect
         const SymmetricTensor<2,6> *stiffness_matrix = &stiffness_matrix_olivine;
         for (size_t mineral_i = 0; mineral_i < n_minerals; mineral_i++)
           {
-            if (cpo_particle_property.get_deformation_type(cpo_data_position,data,mineral_i) != (unsigned int)DeformationTypeSelector::passive) // and enstatite
+            if (mineral_i == 0) //cpo_particle_property.get_deformation_type(cpo_data_position,data,mineral_i) != (unsigned int)DeformationTypeSelector::passive) // and enstatite
               {
                 stiffness_matrix = &stiffness_matrix_olivine;
               }
