@@ -1127,6 +1127,24 @@ namespace aspect
                                                    const std::vector<Tensor<2,3>> rotation_matrices,
                                                    const unsigned int n_output_matrices,
                                                    std::mt19937 &random_number_generator);
+
+    /**
+    * Wraps angle between 0 and 360 degrees.
+    */
+    double wrap_angle(const double angle);
+
+    /**
+     * Compute Z-X-Z Euler angles from rotation matrix.
+     * The Z-X-Z indicates the order of axis axis rotations to generate the Euler angles.
+     */
+    std::vector<double> zxz_euler_angles_from_rotation_matrix(const Tensor<2,3> &rotation_matrix);
+
+    /**
+     * Compute rotation matrix from Z-X-Z Euler angles
+     * The Z-X-Z indicates the order of axis axis rotations to generate the Euler angles.
+     */
+    Tensor<2,3> zxz_euler_angles_to_rotation_matrix(double phi1, double theta, double phi2);
+
   }
 }
 
