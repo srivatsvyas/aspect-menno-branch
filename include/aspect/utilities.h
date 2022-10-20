@@ -921,6 +921,25 @@ namespace aspect
          */
         const std::function<Tensor<1,dim> (const Point<dim> &)> function_object;
     };
+
+
+    /**
+    * Wraps angle between 0 and 360 degrees.
+    */
+    double wrap_angle(const double angle);
+
+    /**
+     * Compute Z-X-Z Euler angles from rotation matrix.
+     * The Z-X-Z indicates the order of axis axis rotations to generate the Euler angles.
+     */
+    std::vector<double> zxz_euler_angles_from_rotation_matrix(const Tensor<2,3> &rotation_matrix);
+
+    /**
+     * Compute rotation matrix from Z-X-Z Euler angles
+     * The Z-X-Z indicates the order of axis axis rotations to generate the Euler angles.
+     */
+    Tensor<2,3> zxz_euler_angles_to_rotation_matrix(double phi1, double theta, double phi2);
+
   }
 }
 
