@@ -39,12 +39,9 @@ namespace aspect
        * @brief The type of deformation used by the CPO code.
        *
        * passive: Only to be used with the spin tensor CPO Derivative algorithm.
-       * olivine_a_fabric: Only to be used with the D-Rex CPO Derivative algorithm. Sets the deformation type of the mineral to a Olivine A Fabric, which influences the relative strength of the slip planes.
-       * olivine_b_fabric: Only to be used with the D-Rex CPO Derivative algorithm. Sets the deformation type of the mineral to a Olivine B Fabric, which influences the relative strenght of the slip planes.
-       * olivine_c_fabric: Only to be used with the D-Rex CPO Derivative algorithm. Sets the deformation type of the mineral to a Olivine C Fabric, which influences the relative strenght of the slip planes.
-       * olivine_d_fabric: Only to be used with the D-Rex CPO Derivative algorithm. Sets the deformation type of the mineral to a Olivine D Fabric, which influences the relative strenght of the slip planes.
-       * olivine_e_fabric: Only to be used with the D-Rex CPO Derivative algorithm. Sets the deformation type of the mineral to a Olivine E Fabric, which influences the relative strenght of the slip planes.
-       * enstatite: Only to be used with the D-Rex CPO Derivative algorithm. Sets the deformation type of the mineral to a enstatite Fabric, which influences the relative strenght of the slip planes.
+       * olivine_a_fabric to olivine_e_fabric: Only to be used with the D-Rex CPO Derivative algorithm.
+       *  Sets the deformation type of the mineral to a Olivine A-E Fabric, which influences the relative strength of the slip planes. See table 1 in Fraters and Billen (2021).
+       * enstatite: Only to be used with the D-Rex CPO Derivative algorithm. Sets the deformation type of the mineral to a enstatite Fabric, which influences the relative strength of the slip planes.
        */
       enum class DeformationType
       {
@@ -62,7 +59,7 @@ namespace aspect
        * passive: Only to be used with the spin tensor CPO Derivative algorithm.
        * olivine_a_fabric to olivine_e_fabric: Only to be used with the D-Rex CPO Derivative algorithm.
        *  Sets the deformation type of the mineral to a Olivine A-E Fabric, which influences the relative strength of the slip planes. See table 1 in Fraters and Billen (2021).
-       * enstatite: Only to be used with the D-Rex CPO Derivative algorithm. Sets the deformation type of the mineral to a enstatite Fabric, which influences the relative strenght of the slip planes.
+       * enstatite: Only to be used with the D-Rex CPO Derivative algorithm. Sets the deformation type of the mineral to a enstatite Fabric, which influences the relative strength of the slip planes.
        * olivine_karato_2008: Only to be used with the D-Rex CPO Derivative algorithm. Sets the deformation type of the mineral to a olivine fabric based on the table in Karato 2008.
        */
       enum class DeformationTypeSelector
@@ -235,10 +232,13 @@ namespace aspect
                               const Tensor<1,dim> &velocity,
                               const std::vector<double> &compositions,
                               const SymmetricTensor<2,dim> &strain_rate,
-                              const SymmetricTensor<2,dim> &compressible_strain_rate,
+                              const SymmetricTensor<2,dim> &deviatoric_strain_rate,
                               const double water_content) const;
 
 
+          /**
+           * Computes the CPO derivatives with the D-Rex 2004 algorithm.
+           */
           std::pair<std::vector<double>, std::vector<Tensor<2,3>>>
           compute_derivatives_drex_2004(const unsigned int cpo_index,
                                         const ArrayView<double> &data,
@@ -285,7 +285,7 @@ namespace aspect
                                      const Tensor<1,dim> &velocity,
                                      const std::vector<double> &compositions,
                                      const SymmetricTensor<2,dim> &strain_rate,
-                                     const SymmetricTensor<2,dim> &compressible_strain_rate,
+                                     const SymmetricTensor<2,dim> &deviatoric_strain_rate,
                                      const double water_content) const;
 
           /**
@@ -525,6 +525,11 @@ namespace aspect
           unsigned int n_minerals;
 
           /**
+           * The index of the water composition.
+           */
+          unsigned int water_index;
+
+          /**
            * A vector containing the deformation type selectors provided by the user.
            * Should be one of the following: "Olivine: Karato 2008", "Olivine: A-fabric",
            * "Olivine: B-fabric", "Olivine: C-fabric", "Olivine: D-fabric", "Olivine: E-fabric",
@@ -585,12 +590,15 @@ namespace aspect
           double exponent_p;
 
           /**
-           * The Grain Boundary Sliding threshold
+           * The Dimensionless Grain Boundary Sliding (GBS) threshold.
+           * This is a grain size threshold below which grain deform by GBS and
+           * become strain-free grains.
            */
           double threshold_GBS;
 
           /**
-           * grain boundary mobility
+           * Dimensionless grain boundary mobility as described by equation 14
+           * in Kaminski and Ribe (2001, EPSL).
            */
           double mobility;
 
