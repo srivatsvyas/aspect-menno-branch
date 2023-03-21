@@ -335,11 +335,28 @@ namespace aspect
               euler_angles.resize(n_minerals);
               for (unsigned int mineral = 0; mineral < n_minerals; ++mineral)
                 {
+<<<<<<< HEAD
                   euler_angles[mineral].resize(n_grains);
                   for (unsigned int i_grain = 0; i_grain < n_grains; ++i_grain)
                     {
                       euler_angles[mineral][i_grain] = Utilities::zxz_euler_angles_from_rotation_matrix(
                                                          rotation_matrices[mineral][i_grain]);
+=======
+                  euler_angles[mineral_i].resize(n_grains);
+                  for (unsigned int grain_i = 0; grain_i < n_grains; grain_i++)
+                    {
+                      for (size_t i = 0; i < 3; i++)
+                        for (size_t j = 0; j < 3; j++)
+                          Assert(abs(rotation_matrices[mineral_i][grain_i][i][j]) <= 1.0,
+                                 ExcMessage("grain " + std::to_string(grain_i) + " of " + std::to_string(n_grains) + ": rotation_matrix[" + std::to_string(i) + "][" + std::to_string(j) +
+                                            "] is larger than one: " + std::to_string(rotation_matrices[mineral_i][grain_i][i][j]) + " (" + std::to_string(rotation_matrices[mineral_i][grain_i][i][j]-1.0) + "). rotation_matrix = \n"
+                                            + std::to_string(rotation_matrices[mineral_i][grain_i][0][0]) + " " + std::to_string(rotation_matrices[mineral_i][grain_i][0][1]) + " " + std::to_string(rotation_matrices[mineral_i][grain_i][0][2]) + "\n"
+                                            + std::to_string(rotation_matrices[mineral_i][grain_i][1][0]) + " " + std::to_string(rotation_matrices[mineral_i][grain_i][1][1]) + " " + std::to_string(rotation_matrices[mineral_i][grain_i][1][2]) + "\n"
+                                            + std::to_string(rotation_matrices[mineral_i][grain_i][2][0]) + " " + std::to_string(rotation_matrices[mineral_i][grain_i][2][1]) + " " + std::to_string(rotation_matrices[mineral_i][grain_i][2][2])));
+
+                      euler_angles[mineral_i][grain_i] = Utilities::zxz_euler_angles_from_rotation_matrix(
+                                                           rotation_matrices[mineral_i][grain_i]);
+>>>>>>> lot's of fixes to get the drex 2004 and drex++ code running including writing the output.
                     }
                 }
             }
@@ -402,9 +419,35 @@ namespace aspect
                     }
                   weighted_rotation_matrices[mineral] = Utilities::rotation_matrices_random_draw_volume_weighting(volume_fractions_grains[mineral], rotation_matrices[mineral], n_grains, this->random_number_generator);
 
+<<<<<<< HEAD
                   Assert(weighted_rotation_matrices[mineral].size() == euler_angles[mineral].size(),
                          ExcMessage("Weighted rotation matrices vector (size = " + std::to_string(weighted_rotation_matrices[mineral].size()) +
                                     ") has different size from input angles (size = " + std::to_string(euler_angles[mineral].size()) + ")."));
+=======
+                  for (unsigned int grain_i = 0; grain_i < n_grains; ++grain_i)
+                    for (size_t i = 0; i < 3; i++)
+                      for (size_t j = 0; j < 3; j++)
+                        Assert(abs(rotation_matrices[mineral_i][grain_i][i][j]) <= 1.0,
+                               ExcMessage("grain" + std::to_string(grain_i) + "rotation_matrix[" + std::to_string(i) + "][" + std::to_string(j) +
+                                          "] is larger than one: " + std::to_string(rotation_matrices[mineral_i][grain_i][i][j]) + " (" + std::to_string(rotation_matrices[mineral_i][grain_i][i][j]-1.0) + "). rotation_matrix = \n"
+                                          + std::to_string(rotation_matrices[mineral_i][grain_i][0][0]) + " " + std::to_string(rotation_matrices[mineral_i][grain_i][0][1]) + " " + std::to_string(rotation_matrices[mineral_i][grain_i][0][2]) + "\n"
+                                          + std::to_string(rotation_matrices[mineral_i][grain_i][1][0]) + " " + std::to_string(rotation_matrices[mineral_i][grain_i][1][1]) + " " + std::to_string(rotation_matrices[mineral_i][grain_i][1][2]) + "\n"
+                                          + std::to_string(rotation_matrices[mineral_i][grain_i][2][0]) + " " + std::to_string(rotation_matrices[mineral_i][grain_i][2][1]) + " " + std::to_string(rotation_matrices[mineral_i][grain_i][2][2])));
+
+                  for (unsigned int grain_i = 0; grain_i < n_grains; ++grain_i)
+                    for (size_t i = 0; i < 3; i++)
+                      for (size_t j = 0; j < 3; j++)
+                        Assert(abs(weighted_rotation_matrices[mineral_i][grain_i][i][j]) <= 1.0,
+                               ExcMessage("grain" + std::to_string(grain_i) + "rotation_matrix[" + std::to_string(i) + "][" + std::to_string(j) +
+                                          "] is larger than one: " + std::to_string(weighted_rotation_matrices[mineral_i][grain_i][i][j]) + " (" + std::to_string(weighted_rotation_matrices[mineral_i][grain_i][i][j]-1.0) + "). rotation_matrix = \n"
+                                          + std::to_string(weighted_rotation_matrices[mineral_i][grain_i][0][0]) + " " + std::to_string(weighted_rotation_matrices[mineral_i][grain_i][0][1]) + " " + std::to_string(weighted_rotation_matrices[mineral_i][grain_i][0][2]) + "\n"
+                                          + std::to_string(weighted_rotation_matrices[mineral_i][grain_i][1][0]) + " " + std::to_string(weighted_rotation_matrices[mineral_i][grain_i][1][1]) + " " + std::to_string(weighted_rotation_matrices[mineral_i][grain_i][1][2]) + "\n"
+                                          + std::to_string(weighted_rotation_matrices[mineral_i][grain_i][2][0]) + " " + std::to_string(weighted_rotation_matrices[mineral_i][grain_i][2][1]) + " " + std::to_string(weighted_rotation_matrices[mineral_i][grain_i][2][2])));
+
+                  Assert(weighted_rotation_matrices[mineral_i].size() == euler_angles[mineral_i].size(),
+                         ExcMessage("Weighted rotation matrices vector (size = " + std::to_string(weighted_rotation_matrices[mineral_i].size()) +
+                                    ") has different size from input angles (size = " + std::to_string(euler_angles[mineral_i].size()) + ")."));
+>>>>>>> lot's of fixes to get the drex 2004 and drex++ code running including writing the output.
 
                   for (unsigned int i_grain = 0; i_grain < n_grains; ++i_grain)
                     {
@@ -447,6 +490,7 @@ namespace aspect
                 }
             }
         }
+<<<<<<< HEAD
 
       std::string filename_master = particle_file_prefix_master + "." + Utilities::int_to_string(dealii::Utilities::MPI::this_mpi_process (this->get_mpi_communicator()),4) + ".dat";
       std::string filename_raw = particle_file_prefix_content_raw + "." + Utilities::int_to_string(dealii::Utilities::MPI::this_mpi_process (this->get_mpi_communicator()),4) + ".dat";
@@ -456,6 +500,15 @@ namespace aspect
       std::unique_ptr<std::string> file_contents_raw = std::make_unique<std::string>(string_stream_content_raw.str());
       std::unique_ptr<std::string> file_contents_draw_volume_weighting = std::make_unique<std::string>(string_stream_content_draw_volume_weighting.str());
 
+=======
+      std::string filename_master = particle_file_prefix_master + "." + Utilities::int_to_string(dealii::Utilities::MPI::this_mpi_process (MPI_COMM_WORLD),4) + ".dat";
+      std::string filename_raw = particle_file_prefix_content_raw + "." + Utilities::int_to_string(dealii::Utilities::MPI::this_mpi_process (MPI_COMM_WORLD),4) + ".dat";
+      std::string filename_draw_volume_weighting = particle_file_prefix_content_draw_volume_weighting + "." + Utilities::int_to_string(dealii::Utilities::MPI::this_mpi_process (MPI_COMM_WORLD),4) + ".dat";
+
+      std::string *file_contents_master = new std::string (string_stream_master.str());
+      std::string *file_contents_raw = new std::string (string_stream_content_raw.str());
+      std::string *file_contents_draw_volume_weighting = new std::string (string_stream_content_draw_volume_weighting.str());
+>>>>>>> lot's of fixes to get the drex 2004 and drex++ code running including writing the output.
       if (write_in_background_thread)
         {
           // Wait for all previous write operations to finish, should
