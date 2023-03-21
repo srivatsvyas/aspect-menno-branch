@@ -189,7 +189,12 @@ namespace aspect
                 for (unsigned int grain_i = 0; grain_i < n_grains ; ++grain_i)
                   {
                     // set volume fraction
-                    volume_fractions_grains[mineral_i][grain_i] = initial_volume_fraction;
+                    if (n_grains < n_grains/10.)
+                      volume_fractions_grains[mineral_i][grain_i] = initial_volume_fraction;
+                    else
+                      {
+                        volume_fractions_grains[mineral_i][grain_i] = initial_volume_fraction/1000.;
+                      }
 
                     // set a uniform random rotation_matrix per grain
                     this->compute_random_rotation_matrix(rotation_matrices_grains[mineral_i][grain_i]);
@@ -358,6 +363,15 @@ namespace aspect
                  * of finding the nearest orthonormal matrix using the SVD
                  */
                 Tensor<2,3> rotation_matrix = get_rotation_matrix_grains(data_position,data,mineral_i,grain_i);
+                for (size_t i = 0; i < 3; i++)
+                  for (size_t j = 0; j < 3; j++)
+                    Assert(abs(rotation_matrix[i][j]) <= 1.0,
+                           ExcMessage("rotation_matrix[" + std::to_string(i) + "][" + std::to_string(j) +
+                                      "] is larger than one: " + std::to_string(rotation_matrix[i][j]) + " (" + std::to_string(rotation_matrix[i][j]-1.0) + "). rotation_matrix = \n"
+                                      + std::to_string(rotation_matrix[0][0]) + " " + std::to_string(rotation_matrix[0][1]) + " " + std::to_string(rotation_matrix[0][2]) + "\n"
+                                      + std::to_string(rotation_matrix[1][0]) + " " + std::to_string(rotation_matrix[1][1]) + " " + std::to_string(rotation_matrix[1][2]) + "\n"
+                                      + std::to_string(rotation_matrix[2][0]) + " " + std::to_string(rotation_matrix[2][1]) + " " + std::to_string(rotation_matrix[2][2])));
+
                 for (size_t i = 0; i < 3; ++i)
                   {
                     for (size_t j = 0; j < 3; ++j)
@@ -388,6 +402,8 @@ namespace aspect
                                         + std::to_string(rotation_matrix[1][0]) + " " + std::to_string(rotation_matrix[1][1]) + " " + std::to_string(rotation_matrix[1][2]) + "\n"
                                         + std::to_string(rotation_matrix[2][0]) + " " + std::to_string(rotation_matrix[2][1]) + " " + std::to_string(rotation_matrix[2][2])));
                     }
+
+                set_rotation_matrix_grains(data_position,data,mineral_i,grain_i,rotation_matrix);
               }
           }
       }
@@ -680,8 +696,8 @@ namespace aspect
 
         // Make the strain-rate and velocity gradient tensor non-dimensional
         // by dividing it through the second invariant
-        const Tensor<2,3> strain_rate_nondimensional = nondimensionalization_value != 0 ? strain_rate_3d : strain_rate_3d/nondimensionalization_value;
-        const Tensor<2,3> velocity_gradient_tensor_nondimensional = nondimensionalization_value != 0 ? velocity_gradient_tensor : velocity_gradient_tensor/nondimensionalization_value;
+        const Tensor<2,3> strain_rate_nondimensional = nondimensionalization_value != 0 ? strain_rate_3d/nondimensionalization_value : strain_rate_3d;
+        const Tensor<2,3> velocity_gradient_tensor_nondimensional = nondimensionalization_value != 0 ? velocity_gradient_tensor/nondimensionalization_value : velocity_gradient_tensor;
 
         // create output variables
         std::vector<double> deriv_volume_fractions(n_grains);
@@ -810,6 +826,7 @@ namespace aspect
               {
                 const double rhos = std::pow(tau[indices[slip_system_i]],exponent_p-stress_exponent) *
                                     std::pow(std::abs(gamma*beta[indices[slip_system_i]]),exponent_p/stress_exponent);
+
                 strain_energy[grain_i] += rhos * std::exp(-nucleation_efficiency * rhos * rhos);
 
                 Assert(isfinite(strain_energy[grain_i]), ExcMessage("strain_energy[" + std::to_string(grain_i) + "] is not finite: " + std::to_string(strain_energy[grain_i])
@@ -876,6 +893,15 @@ namespace aspect
         unsigned int permutation_vector_counter = 0;
         Tensor<2,3> main_rotation_matrix = get_rotation_matrix_grains(cpo_index,data,mineral_i,permutation_vector[permutation_vector_counter]);
 
+        for (size_t i = 0; i < 3; i++)
+          for (size_t j = 0; j < 3; j++)
+            Assert(abs(main_rotation_matrix[i][j]) <= 1.0,
+                   ExcMessage("rotation_matrix[" + std::to_string(i) + "][" + std::to_string(j) +
+                              "] is larger than one: " + std::to_string(main_rotation_matrix[i][j]) + " (" + std::to_string(main_rotation_matrix[i][j]-1.0) + "). rotation_matrix = \n"
+                              + std::to_string(main_rotation_matrix[0][0]) + " " + std::to_string(main_rotation_matrix[0][1]) + " " + std::to_string(main_rotation_matrix[0][2]) + "\n"
+                              + std::to_string(main_rotation_matrix[1][0]) + " " + std::to_string(main_rotation_matrix[1][1]) + " " + std::to_string(main_rotation_matrix[1][2]) + "\n"
+                              + std::to_string(main_rotation_matrix[2][0]) + " " + std::to_string(main_rotation_matrix[2][1]) + " " + std::to_string(main_rotation_matrix[2][2])));
+
         for (unsigned int grain_i = 0; grain_i < n_grains; ++grain_i)
           {
             const double grain_volume = get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i);
@@ -884,7 +910,7 @@ namespace aspect
               {
                 temp_total_volume += get_volume_fractions_grains(cpo_index,data,mineral_i,i);
               }
-            const size_t n_recrystalized_grains = std::floor(recrystalization_fractions[grain_i]*grain_volume/recrystalized_grain_volume);
+            const size_t n_recrystalized_grains = std::floor(recrystalization_fractions[grain_i]*grain_volume/temp_total_volume);
             if (n_recrystalized_grains > 0)
               {
                 const double grain_volume_left = grain_volume-n_recrystalized_grains*recrystalized_grain_volume;
@@ -901,6 +927,14 @@ namespace aspect
 
                 Tensor<2,3> random_rotation_matrix;
                 this->compute_random_rotation_matrix(random_rotation_matrix);
+                for (size_t i = 0; i < 3; i++)
+                  for (size_t j = 0; j < 3; j++)
+                    Assert(abs(random_rotation_matrix[i][j]) <= 1.0,
+                           ExcMessage("rotation_matrix[" + std::to_string(i) + "][" + std::to_string(j) +
+                                      "] is larger than one: " + std::to_string(random_rotation_matrix[i][j]) + " (" + std::to_string(random_rotation_matrix[i][j]-1.0) + "). rotation_matrix = \n"
+                                      + std::to_string(random_rotation_matrix[0][0]) + " " + std::to_string(random_rotation_matrix[0][1]) + " " + std::to_string(random_rotation_matrix[0][2]) + "\n"
+                                      + std::to_string(random_rotation_matrix[1][0]) + " " + std::to_string(random_rotation_matrix[1][1]) + " " + std::to_string(random_rotation_matrix[1][2]) + "\n"
+                                      + std::to_string(random_rotation_matrix[2][0]) + " " + std::to_string(random_rotation_matrix[2][1]) + " " + std::to_string(random_rotation_matrix[2][2])));
                 set_rotation_matrix_grains(cpo_index,data,mineral_i,permutation_vector[permutation_vector_counter],random_rotation_matrix);
                 strain_energy[permutation_vector[permutation_vector_counter]] = 0.0;
 
@@ -913,6 +947,15 @@ namespace aspect
 
                     // TODO: compute random rotation matrix between two degrees and apply it
                     this->compute_random_rotation_matrix(random_deflection);
+                    main_rotation_matrix = main_rotation_matrix*random_deflection;
+                    for (size_t i = 0; i < 3; i++)
+                      for (size_t j = 0; j < 3; j++)
+                        Assert(abs(main_rotation_matrix[i][j]) <= 1.0,
+                               ExcMessage("rotation_matrix[" + std::to_string(i) + "][" + std::to_string(j) +
+                                          "] is larger than one: " + std::to_string(main_rotation_matrix[i][j]) + " (" + std::to_string(main_rotation_matrix[i][j]-1.0) + "). rotation_matrix = \n"
+                                          + std::to_string(main_rotation_matrix[0][0]) + " " + std::to_string(main_rotation_matrix[0][1]) + " " + std::to_string(main_rotation_matrix[0][2]) + "\n"
+                                          + std::to_string(main_rotation_matrix[1][0]) + " " + std::to_string(main_rotation_matrix[1][1]) + " " + std::to_string(main_rotation_matrix[1][2]) + "\n"
+                                          + std::to_string(main_rotation_matrix[2][0]) + " " + std::to_string(main_rotation_matrix[2][1]) + " " + std::to_string(main_rotation_matrix[2][2])));
 
                     // apply deflection TODO: test!
                     set_rotation_matrix_grains(cpo_index,data,mineral_i,permutation_vector[permutation_vector_counter],main_rotation_matrix*random_deflection);
@@ -976,6 +1019,14 @@ namespace aspect
             // compute G and beta
             Tensor<1,4> bigI;
             const Tensor<2,3> rotation_matrix = get_rotation_matrix_grains(cpo_index,data,mineral_i,grain_i);
+            for (size_t i = 0; i < 3; i++)
+              for (size_t j = 0; j < 3; j++)
+                Assert(abs(rotation_matrix[i][j]) <= 1.0,
+                       ExcMessage("rotation_matrix[" + std::to_string(i) + "][" + std::to_string(j) +
+                                  "] is larger than one: " + std::to_string(rotation_matrix[i][j]) + " (" + std::to_string(rotation_matrix[i][j]-1.0) + "). rotation_matrix = \n"
+                                  + std::to_string(rotation_matrix[0][0]) + " " + std::to_string(rotation_matrix[0][1]) + " " + std::to_string(rotation_matrix[0][2]) + "\n"
+                                  + std::to_string(rotation_matrix[1][0]) + " " + std::to_string(rotation_matrix[1][1]) + " " + std::to_string(rotation_matrix[1][2]) + "\n"
+                                  + std::to_string(rotation_matrix[2][0]) + " " + std::to_string(rotation_matrix[2][1]) + " " + std::to_string(rotation_matrix[2][2])));
             const Tensor<2,3> rotation_matrix_transposed = transpose(rotation_matrix);
             for (unsigned int slip_system_i = 0; slip_system_i < 4; ++slip_system_i)
               {
@@ -1104,9 +1155,12 @@ namespace aspect
 
         for (unsigned int grain_i = 0; grain_i < n_grains; ++grain_i)
           {
-            recrystalized_fractions[grain_i] = (grain_boundary_sliding_fractions[grain_i]/total_grain_boundary_sliding_fraction)
+            recrystalized_fractions[grain_i] = total_grain_boundary_sliding_fraction != 0 && total_subgrain_rotation_fraction !=0 ?
+                                               (grain_boundary_sliding_fractions[grain_i]/total_grain_boundary_sliding_fraction)
                                                * (subgrain_rotation_fractions[grain_i]/total_subgrain_rotation_fraction)
-                                               * aggregate_recrystalization_increment;
+                                               * aggregate_recrystalization_increment
+                                               :
+                                               0.0;
           }
 
         // Secondly recrystalize grains
@@ -1386,38 +1440,26 @@ namespace aspect
                                   Patterns::Anything(),
                                   "The model used to initialize the CPO for all particles. "
                                   "Currently 'Uniform grains and random uniform rotations' is the only valid option.");
-                prm.enter_subsection("Uniform grains and random uniform rotations");
-                {
-                  prm.declare_entry ("Minerals", "Olivine: Karato 2008, Enstatite",
-                                     Patterns::List(Patterns::Anything()),
-                                     "This determines what minerals and fabrics or fabric selectors are used used for the LPO/CPO calculation. "
-                                     "The options are Olivine: Passive, A-fabric, Olivine: B-fabric, Olivine: C-fabric, Olivine: D-fabric, "
-                                     "Olivine: E-fabric, Olivine: Karato 2008 or Enstatite. Passive sets all RRSS entries to the maximum. The "
-                                     "Karato 2008 selector selects a fabric based on stress and water content as defined in "
-                                     "figure 4 of the Karato 2008 review paper (doi: 10.1146/annurev.earth.36.031207.124120).");
 
+                prm.declare_entry ("Minerals", "Olivine: Karato 2008, Enstatite",
+                                   Patterns::List(Patterns::Anything()),
+                                   "This determines what minerals and fabrics or fabric selectors are used used for the LPO/CPO calculation. "
+                                   "The options are Olivine: Passive, A-fabric, Olivine: B-fabric, Olivine: C-fabric, Olivine: D-fabric, "
+                                   "Olivine: E-fabric, Olivine: Karato 2008 or Enstatite. Passive sets all RRSS entries to the maximum. The "
+                                   "Karato 2008 selector selects a fabric based on stress and water content as defined in "
+                                   "figure 4 of the Karato 2008 review paper (doi: 10.1146/annurev.earth.36.031207.124120).");
 
-                  prm.declare_entry ("Volume fractions minerals", "0.7, 0.3",
-                                     Patterns::List(Patterns::Double(0)),
-                                     "The volume fractions for the different minerals. "
-                                     "There need to be the same number of values as there are minerals."
-                                     "Note that the currently implemented scheme is incompressible and "
-                                     "does not allow chemical interaction or the formation of new phases");
-                }
-                prm.leave_subsection ();
+                prm.declare_entry ("Volume fractions minerals", "0.7, 0.3",
+                                   Patterns::List(Patterns::Double(0)),
+                                   "The volume fractions for the different minerals. "
+                                   "There need to be the same number of values as there are minerals."
+                                   "Note that the currently implemented scheme is incompressible and "
+                                   "does not allow chemical interaction or the formation of new phases");
               }
               prm.leave_subsection ();
 
               prm.enter_subsection("D-Rex 2004");
               {
-                prm.declare_entry ("Minerals", "Olivine: Karato 2008, Enstatite",
-                                   Patterns::List(Patterns::Anything()),
-                                   "This determines what minerals and fabrics or fabric selectors are used used for the LPO calculation. "
-                                   "The options are Olivine: A-fabric, Olivine: B-fabric, Olivine: C-fabric, Olivine: D-fabric, "
-                                   "Olivine: E-fabric, Olivine: Karato 2008 or Enstatite. The "
-                                   "Karato 2008 selector selects a fabric based on stress and water content as defined in "
-                                   "figure 4 of the Karato 2008 review paper (doi: 10.1146/annurev.earth.36.031207.124120).");
-
                 prm.declare_entry ("Mobility", "50",
                                    Patterns::Double(0),
                                    "The dimensionless intrinsic grain boundary mobility for both olivine and enstatite.");
@@ -1451,14 +1493,6 @@ namespace aspect
 
               prm.enter_subsection("D-Rex++");
               {
-                prm.declare_entry ("Minerals", "Olivine: Karato 2008, Enstatite",
-                                   Patterns::List(Patterns::Anything()),
-                                   "This determines what minerals and fabrics or fabric selectors are used used for the LPO calculation. "
-                                   "The options are Olivine: A-fabric, Olivine: B-fabric, Olivine: C-fabric, Olivine: D-fabric, "
-                                   "Olivine: E-fabric, Olivine: Karato 2008 or Enstatite. The "
-                                   "Karato 2008 selector selects a fabric based on stress and water content as defined in "
-                                   "figure 4 of the Karato 2008 review paper (doi: 10.1146/annurev.earth.36.031207.124120).");
-
                 prm.declare_entry ("Mobility", "50",
                                    Patterns::Double(0),
                                    "The dimensionless intrinsic grain boundary mobility for both olivine and enstatite.");
@@ -1527,8 +1561,11 @@ namespace aspect
                 }
               else if (temp_cpo_derivative_algorithm ==  "D-Rex 2004")
                 {
-                  AssertThrow(false,
-                              ExcMessage("D-Rex 2004 has not been implemented yet."))
+                  cpo_derivative_algorithm = CPODerivativeAlgorithm::drex_2004;
+                }
+              else if (temp_cpo_derivative_algorithm ==  "D-Rex++")
+                {
+                  cpo_derivative_algorithm = CPODerivativeAlgorithm::drexpp;
                 }
               else
                 {
@@ -1557,66 +1594,66 @@ namespace aspect
                 AssertThrow(model_name == "Uniform grains and random uniform rotations",
                             ExcMessage("No model named " + model_name + "for CPO particle property initialization. "
                                        + "Only the model \"Uniform grains and random uniform rotations\" is available."));
-                prm.enter_subsection("Uniform grains and random uniform rotations");
-                {
-                  const std::vector<std::string> temp_deformation_type_selector = dealii::Utilities::split_string_list(prm.get("Minerals"));
-                  n_minerals = temp_deformation_type_selector.size();
-                  deformation_type_selector.resize(n_minerals);
+                const std::vector<std::string> temp_deformation_type_selector = dealii::Utilities::split_string_list(prm.get("Minerals"));
+                //prm.enter_subsection("Uniform grains and random uniform rotations");
+                //{
+                n_minerals = temp_deformation_type_selector.size();
+                deformation_type_selector.resize(n_minerals);
 
-                  for (size_t mineral_i = 0; mineral_i < n_minerals; ++mineral_i)
-                    {
-                      if (temp_deformation_type_selector[mineral_i] == "Passive")
-                        {
-                          deformation_type_selector[mineral_i] = DeformationTypeSelector::passive;
-                        }
-                      else if (temp_deformation_type_selector[mineral_i] == "Olivine: Karato 2008")
-                        {
-                          deformation_type_selector[mineral_i] = DeformationTypeSelector::olivine_karato_2008;
-                        }
-                      else if (temp_deformation_type_selector[mineral_i] ==  "Olivine: A-fabric")
-                        {
-                          deformation_type_selector[mineral_i] = DeformationTypeSelector::olivine_a_fabric;
-                        }
-                      else if (temp_deformation_type_selector[mineral_i] ==  "Olivine: B-fabric")
-                        {
-                          deformation_type_selector[mineral_i] = DeformationTypeSelector::olivine_b_fabric;
-                        }
-                      else if (temp_deformation_type_selector[mineral_i] ==  "Olivine: C-fabric")
-                        {
-                          deformation_type_selector[mineral_i] = DeformationTypeSelector::olivine_c_fabric;
-                        }
-                      else if (temp_deformation_type_selector[mineral_i] ==  "Olivine: D-fabric")
-                        {
-                          deformation_type_selector[mineral_i] = DeformationTypeSelector::olivine_d_fabric;
-                        }
-                      else if (temp_deformation_type_selector[mineral_i] ==  "Olivine: E-fabric")
-                        {
-                          deformation_type_selector[mineral_i] = DeformationTypeSelector::olivine_e_fabric;
-                        }
-                      else if (temp_deformation_type_selector[mineral_i] ==  "Enstatite")
-                        {
-                          deformation_type_selector[mineral_i] = DeformationTypeSelector::enstatite;
-                        }
-                      else
-                        {
-                          AssertThrow(false,
-                                      ExcMessage("The fabric needs to be assigned one of the following comma-delimited values: Olivine: Karato 2008, "
-                                                 "Olivine: A-fabric, Olivine: B-fabric, Olivine: C-fabric, Olivine: D-fabric,"
-                                                 "Olivine: E-fabric, Enstatite, Passive."))
-                        }
-                    }
+                for (size_t mineral_i = 0; mineral_i < n_minerals; ++mineral_i)
+                  {
+                    if (temp_deformation_type_selector[mineral_i] == "Passive")
+                      {
+                        deformation_type_selector[mineral_i] = DeformationTypeSelector::passive;
+                      }
+                    else if (temp_deformation_type_selector[mineral_i] == "Olivine: Karato 2008")
+                      {
+                        deformation_type_selector[mineral_i] = DeformationTypeSelector::olivine_karato_2008;
+                      }
+                    else if (temp_deformation_type_selector[mineral_i] ==  "Olivine: A-fabric")
+                      {
+                        deformation_type_selector[mineral_i] = DeformationTypeSelector::olivine_a_fabric;
+                      }
+                    else if (temp_deformation_type_selector[mineral_i] ==  "Olivine: B-fabric")
+                      {
+                        deformation_type_selector[mineral_i] = DeformationTypeSelector::olivine_b_fabric;
+                      }
+                    else if (temp_deformation_type_selector[mineral_i] ==  "Olivine: C-fabric")
+                      {
+                        deformation_type_selector[mineral_i] = DeformationTypeSelector::olivine_c_fabric;
+                      }
+                    else if (temp_deformation_type_selector[mineral_i] ==  "Olivine: D-fabric")
+                      {
+                        deformation_type_selector[mineral_i] = DeformationTypeSelector::olivine_d_fabric;
+                      }
+                    else if (temp_deformation_type_selector[mineral_i] ==  "Olivine: E-fabric")
+                      {
+                        deformation_type_selector[mineral_i] = DeformationTypeSelector::olivine_e_fabric;
+                      }
+                    else if (temp_deformation_type_selector[mineral_i] ==  "Enstatite")
+                      {
+                        deformation_type_selector[mineral_i] = DeformationTypeSelector::enstatite;
+                      }
+                    else
+                      {
+                        AssertThrow(false,
+                                    ExcMessage("The fabric needs to be assigned one of the following comma-delimited values: Olivine: Karato 2008, "
+                                               "Olivine: A-fabric, Olivine: B-fabric, Olivine: C-fabric, Olivine: D-fabric,"
+                                               "Olivine: E-fabric, Enstatite, Passive."))
+                      }
+                  }
 
-                  volume_fractions_minerals = Utilities::string_to_double(dealii::Utilities::split_string_list(prm.get("Volume fractions minerals")));
-                  double volume_fractions_minerals_sum = 0;
-                  for (auto fraction : volume_fractions_minerals)
-                    {
-                      volume_fractions_minerals_sum += fraction;
-                    }
+                volume_fractions_minerals = Utilities::string_to_double(dealii::Utilities::split_string_list(prm.get("Volume fractions minerals")));
+                double volume_fractions_minerals_sum = 0;
+                for (auto fraction : volume_fractions_minerals)
+                  {
+                    volume_fractions_minerals_sum += fraction;
+                  }
 
-                  AssertThrow(abs(volume_fractions_minerals_sum-1.0) < 2.0 * std::numeric_limits<double>::epsilon(),
-                              ExcMessage("The sum of the CPO volume fractions should be one."));
-                }
-                prm.leave_subsection();
+                AssertThrow(abs(volume_fractions_minerals_sum-1.0) < 2.0 * std::numeric_limits<double>::epsilon(),
+                            ExcMessage("The sum of the CPO volume fractions should be one."));
+                //}
+                //prm.leave_subsection();
               }
               prm.leave_subsection();
 
