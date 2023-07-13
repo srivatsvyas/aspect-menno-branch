@@ -969,23 +969,6 @@ namespace aspect
                 beta[indices.back()] = 0.0;
                 for (unsigned int slip_system_i = 0; slip_system_i < 4; ++slip_system_i)
 
-<<<<<<< HEAD
-                // Now compute the crystal rate of deformation tensor.
-                std::cout<<"G = "<<std::endl;
-                for (unsigned int i = 0; i < 3; ++i)
-                  {
-                    for (unsigned int j = 0; j < 3; ++j)
-                      {
-                        G[i][j] = 2.0 * (beta[0] * rotation_matrix[0][i] * rotation_matrix[1][j]
-                                         + beta[1] * rotation_matrix[0][i] * rotation_matrix[2][j]
-                                         + beta[2] * rotation_matrix[2][i] * rotation_matrix[1][j]
-                                         + beta[3] * rotation_matrix[2][i] * rotation_matrix[0][j]);
-                        std::cout<<G[i][j]<<" ";
-                      }
-                    std::cout<<std::endl;
-                  }
-                std::cout<<std::endl;
-=======
                   // Now compute the crystal rate of deformation tensor.
                   for (unsigned int i = 0; i < 3; ++i)
                     {
@@ -997,7 +980,6 @@ namespace aspect
                                            + beta[3] * rotation_matrix[2][i] * rotation_matrix[0][j]);
                         }
                     }
->>>>>>> Removed comments/improved piezometer documentation/changed avrami
               }
 
             // Now calculate the analytic solution to the deformation minimization problem
