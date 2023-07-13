@@ -389,9 +389,12 @@ namespace aspect
               std::vector<std::vector<std::array<double,3>>> weighted_euler_angles;
 
               weighted_euler_angles.resize(n_minerals);
+              weighted_rotation_matrices.resize(n_minerals);
+
               std::vector<std::vector<double>> volume_fractions_grains(n_minerals,std::vector<double>(n_grains,-1.));
               for (unsigned int mineral = 0; mineral < n_minerals; ++mineral)
                 {
+                 
                   for (unsigned int i_grain = 0; i_grain < n_grains; ++i_grain)
                     {
                       volume_fractions_grains[mineral][i_grain] = cpo_particle_property.get_volume_fractions_grains(
@@ -400,7 +403,11 @@ namespace aspect
                                                                     mineral,
                                                                     i_grain);
                     }
-                  weighted_rotation_matrices[mineral] = Utilities::rotation_matrices_random_draw_volume_weighting(volume_fractions_grains[mineral], rotation_matrices[mineral], n_grains, this->random_number_generator);
+                  weighted_rotation_matrices[mineral].resize(n_grains);
+                  weighted_euler_angles[mineral].resize(n_grains); 
+
+                  weighted_rotation_matrices[mineral] = Utilities::rotation_matrices_random_draw_volume_weighting(volume_fractions_grains[mineral],
+                    rotation_matrices[mineral], n_grains, this->random_number_generator);
 
                   Assert(weighted_rotation_matrices[mineral].size() == euler_angles[mineral].size(),
                          ExcMessage("Weighted rotation matrices vector (size = " + std::to_string(weighted_rotation_matrices[mineral].size()) +
@@ -408,8 +415,7 @@ namespace aspect
 
                   for (unsigned int i_grain = 0; i_grain < n_grains; ++i_grain)
                     {
-                      weighted_euler_angles[mineral][i_grain] = Utilities::zxz_euler_angles_from_rotation_matrix(
-                                                                  weighted_rotation_matrices[mineral][i_grain]);
+                      weighted_euler_angles[mineral][i_grain] = Utilities::zxz_euler_angles_from_rotation_matrix(weighted_rotation_matrices[mineral][i_grain]);
                     }
                 }
               string_stream_content_draw_volume_weighting << std::endl;

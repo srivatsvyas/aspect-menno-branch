@@ -1723,16 +1723,16 @@ namespace aspect
                                    "There need to be the same amount of values as there are minerals");
 
                 prm.declare_entry ("Stress exponents", "3.5",
-                                   Patterns::Double(0),
+                                   Patterns::List(Patterns::Double(0)),
                                    "This is the power law exponent that characterizes the rheology of the "
                                    "slip systems. It is used in equation 11 of Kaminski et al., 2004.");
 
                 prm.declare_entry ("Exponents p", "1.5",
-                                   Patterns::Double(0),
+                                   Patterns::List(Patterns::Double(0)),
                                    "This is exponent p as defined in equation 11 of Kaminski et al., 2004. ");
 
                 prm.declare_entry ("Nucleation efficiency", "5",
-                                   Patterns::Double(0),
+                                   Patterns::List(Patterns::Double(0)),
                                    "This is the dimensionless nucleation rate as defined in equation 8 of "
                                    "Kaminski et al., 2004. ");
 
