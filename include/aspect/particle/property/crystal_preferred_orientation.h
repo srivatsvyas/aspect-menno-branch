@@ -265,7 +265,7 @@ namespace aspect
                                         const Tensor<2,3> &velocity_gradient_tensor,
                                         const std::array<double,4> ref_resolved_shear_stress,
                                         const bool prevent_nondimensionalization = false) const;
-          
+
           std::pair<std::vector<double>, std::vector<Tensor<2,3>>>
           compute_derivatives_drexpp(const unsigned int cpo_index,
                                      const ArrayView<double> &data,
