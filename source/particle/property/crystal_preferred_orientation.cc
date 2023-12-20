@@ -1591,7 +1591,7 @@ namespace aspect
             // (Eq. 9, Kaminski & Ribe 2001)
             deriv_a_cosine_matrices[grain_i] = 0;
             const double volume_fraction_grain = get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i);
-            if ((volume_fraction_grain > 0) && (grain_boundary_sliding_fractions[grain_i] > 0.5))
+            if ((volume_fraction_grain != 0) && (grain_boundary_sliding_fractions[grain_i] > 0.5))
               {
                 deriv_a_cosine_matrices[grain_i] =  Utilities::Tensors::levi_civita<3>() * spin_vectors[grain_i];
                 sum_volume += numbers::PI * std::pow(volume_fraction_grain,2);
@@ -1617,7 +1617,7 @@ namespace aspect
         for (unsigned int grain_i = 0; grain_i < n_grains; ++grain_i)
           {
             double volume_fraction_grain = get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i);
-            if (volume_fraction_grain > 0)
+            if (volume_fraction_grain != 0)
               {
                 // Different than D-Rex. Here we actually only compute the derivative and do not multiply it with the volume_fractions. We do that when we advect.<
                 deriv_volume_fractions[grain_i] = get_volume_fraction_mineral(cpo_index,data,mineral_i) *  drexpp_mobility[mineral_i] * (mean_strain_energy - strain_energy[grain_i]);
@@ -2182,4 +2182,4 @@ namespace aspect
     }
   }
 }
-}
+
