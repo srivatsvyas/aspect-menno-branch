@@ -709,6 +709,9 @@ namespace aspect
                       //vf_new = get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i) + dt * (vf_new/sum_of_volumes) *  derivatives.first[grain_i];
                       vf_new = get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i) + dt  *  derivatives.first[grain_i];
 
+                      Assert(vf_new < 0,ExcMessage("volume_fractions[grain_i] is negative. grain_i = "
+                             + std::to_string(grain_i) + ", volume_fractions[grain_i] = " + std::to_string(get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i))
+                             + ", derivatives.first[grain_i] = " + std::to_string(derivatives.first[grain_i])));
 
                       Assert(std::isfinite(get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i)),ExcMessage("volume_fractions[grain_i] is not finite. grain_i = "
                              + std::to_string(grain_i) + ", volume_fractions[grain_i] = " + std::to_string(get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i))
@@ -1268,7 +1271,10 @@ namespace aspect
               }
 
             const size_t n_recrystalized_grains = std::floor((recrystalization_fractions[grain_i]*t_grain_volume)/t_recrystalized_grain_volume);
-
+           //if(t_grain_volume != 0)
+           {
+           // std::cout<<"rx value = "<<recrystalization_fractions[grain_i]<<"\t"<<"numerator ="<<(recrystalization_fractions[grain_i]*t_grain_volume)<<"\tdenominator ="<<t_recrystalized_grain_volume<<std::endl;
+           }
             if ( n_recrystalized_grains !=0)
               {
                 std::cout<<"No. of grains nucleated from grain "<<grain_i<<" = "<<n_recrystalized_grains<<std::endl;
@@ -1536,12 +1542,13 @@ namespace aspect
                 for (unsigned int composition = 0; composition < volume_fractions.size(); ++composition)
                   {
                     diffusion_viscosities[composition] = diffusion_pre_viscosities[composition] * std::pow(grain_volume, diffusion_grain_size_exponent[composition]);
-                    composite_viscosities[composition] = diffusion_viscosities[composition]+dislocation_viscosities[composition];
+                    composite_viscosities[composition] =(diffusion_viscosities[composition] * dislocation_viscosities[composition])/(diffusion_viscosities[composition]+dislocation_viscosities[composition]);
                   }
                 const double diffusion_viscosity = MaterialModel::MaterialUtilities::average_value(volume_fractions, diffusion_viscosities, MaterialModel::MaterialUtilities::harmonic);
                 const double composite_viscosity = MaterialModel::MaterialUtilities::average_value(volume_fractions, composite_viscosities, MaterialModel::MaterialUtilities::harmonic);
 
                 grain_boundary_sliding_fractions[grain_i] = diffusion_viscosity/composite_viscosity;
+                //std::cout<<"viscosity ratio for grain"<<grain_i<<" = "<<grain_boundary_sliding_fractions[grain_i]<<std::endl;
                 AssertThrow(grain_boundary_sliding_fractions[grain_i]>0.0, ExcMessage("diffusion strain-rate larger than total strain-rate."
                                                                                       "composite_viscosity = " + std::to_string(composite_viscosity)
                                                                                       + ", diffusion_viscosity = " + std::to_string(diffusion_viscosity)
