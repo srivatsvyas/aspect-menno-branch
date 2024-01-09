@@ -190,14 +190,12 @@ namespace aspect
                       for (unsigned int grain_i = 0; grain_i < n_grains ; ++grain_i)
                         {
                           //set volume fraction
-                          if (grain_i < n_grains/10.)
+                          if (grain_i < n_grains_init)
                             {
-                              //volume_fractions_grains[mineral_i][grain_i] = (4./3.)*numbers::PI*pow( 0.5 * initial_grain_size ,3);
                               volume_fractions_grains[mineral_i][grain_i] = initial_grain_size;
                             }
                           else
                             {
-                              //volume_fractions_grains[mineral_i][grain_i] = (4./3.)*numbers::PI*pow( 0.5 * 2e-11 ,3);
                               volume_fractions_grains[mineral_i][grain_i] = 0;
                             }
 
@@ -683,7 +681,6 @@ namespace aspect
 
             case CPODerivativeAlgorithm::drexpp:
             {
-              double sum_volume_fractions = 0;
               double sum_of_volumes = 0;
               Tensor<2,3> cosine_ref;
 
@@ -707,11 +704,7 @@ namespace aspect
                                                               + ", derivatives.first[grain_i] = " + std::to_string(derivatives.first[grain_i])));
 
                       //vf_new = get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i) + dt * (vf_new/sum_of_volumes) *  derivatives.first[grain_i];
-                      vf_new = get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i) + dt  *  derivatives.first[grain_i];
-
-                      Assert(vf_new < 0,ExcMessage("volume_fractions[grain_i] is negative. grain_i = "
-                             + std::to_string(grain_i) + ", volume_fractions[grain_i] = " + std::to_string(get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i))
-                             + ", derivatives.first[grain_i] = " + std::to_string(derivatives.first[grain_i])));
+                      vf_new = get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i) + dt  * (vf_new/sum_of_volumes) * derivatives.first[grain_i];
 
                       Assert(std::isfinite(get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i)),ExcMessage("volume_fractions[grain_i] is not finite. grain_i = "
                              + std::to_string(grain_i) + ", volume_fractions[grain_i] = " + std::to_string(get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i))
@@ -722,6 +715,10 @@ namespace aspect
                         }
                       vf_old = vf_new;
                     }
+                  
+                    /*Assert(vf_new < 0,ExcMessage("volume_fractions[grain_i] is negative. grain_i = "
+                             + std::to_string(grain_i) + ", volume_fractions[grain_i] = " + std::to_string(get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i))
+                             + ", derivatives.first[grain_i] = " + std::to_string(derivatives.first[grain_i])));*/                  
 
                   set_volume_fractions_grains(cpo_index,data,mineral_i,grain_i,vf_new);
                   sum_volume_fractions += vf_new;
@@ -1924,6 +1921,9 @@ namespace aspect
 
               prm.enter_subsection("D-Rex++");
               {
+                prm.declare_entry ("Number of initial grains","500",
+                                   Patterns::List(Patterns::Double(0)),
+                                   "Initial no. of grains we want to start the model with." );
                 prm.declare_entry ("Mobility", "125",
                                    Patterns::List(Patterns::Double(0)),
                                    "The dimensionless intrinsic grain boundary mobility for both olivine and enstatite.");
@@ -2106,6 +2106,7 @@ namespace aspect
 
               prm.enter_subsection("D-Rex++");
               {
+                n_grains_init = prm.get_double("Number of initial grains");
                 drexpp_mobility = Utilities::string_to_double(dealii::Utilities::split_string_list(prm.get("Mobility")));
                 volume_fractions_minerals = Utilities::string_to_double(dealii::Utilities::split_string_list(prm.get("Volume fractions minerals")));
                 drexpp_stress_exponent = Utilities::string_to_double(dealii::Utilities::split_string_list(prm.get("Stress exponents")));
