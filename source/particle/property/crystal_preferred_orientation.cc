@@ -22,6 +22,8 @@
 #include <aspect/geometry_model/interface.h>
 #include <aspect/gravity_model/interface.h>
 #include <aspect/adiabatic_conditions/interface.h>
+#include <aspect/gravity_model/interface.h>
+#include <aspect/adiabatic_conditions/interface.h>
 #include <world_builder/grains.h>
 #include <world_builder/world.h>
 
@@ -1820,7 +1822,7 @@ namespace aspect
 
 
 
-      template <int dim>
+          template <int dim>
       void
       CrystalPreferredOrientation<dim>::declare_parameters (ParameterHandler &prm)
       {
@@ -1888,6 +1890,7 @@ namespace aspect
 
               prm.enter_subsection("D-Rex 2004");
               {
+                prm.declare_entry ("Mobility", "125",
                 prm.declare_entry ("Mobility", "125",
                                    Patterns::Double(0),
                                    "The dimensionless intrinsic grain boundary mobility for both olivine and enstatite.");
@@ -1998,6 +2001,10 @@ namespace aspect
               else if (temp_cpo_derivative_algorithm ==  "D-Rex 2004")
                 {
                   cpo_derivative_algorithm = CPODerivativeAlgorithm::drex_2004;
+                }
+              else if (temp_cpo_derivative_algorithm ==  "D-Rex++")
+                {
+                  cpo_derivative_algorithm = CPODerivativeAlgorithm::drexpp;
                 }
               else if (temp_cpo_derivative_algorithm ==  "D-Rex++")
                 {
