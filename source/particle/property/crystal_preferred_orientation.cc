@@ -684,6 +684,7 @@ namespace aspect
             case CPODerivativeAlgorithm::drexpp:
             {
               double sum_of_volumes = 0;
+              double sum_volume_fractions = 0;
               Tensor<2,3> cosine_ref;
 
               for (unsigned int grain_i = 0; grain_i < n_grains; ++grain_i)
@@ -706,7 +707,7 @@ namespace aspect
                                                               + ", derivatives.first[grain_i] = " + std::to_string(derivatives.first[grain_i])));
 
                       //vf_new = get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i) + dt * (vf_new/sum_of_volumes) *  derivatives.first[grain_i];
-                      vf_new = get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i) + dt  * (vf_new/sum_of_volumes) * derivatives.first[grain_i];
+                      vf_new = get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i) + dt * (vf_new/sum_of_volumes) * derivatives.first[grain_i];
 
                       Assert(std::isfinite(get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i)),ExcMessage("volume_fractions[grain_i] is not finite. grain_i = "
                              + std::to_string(grain_i) + ", volume_fractions[grain_i] = " + std::to_string(get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i))
@@ -716,11 +717,7 @@ namespace aspect
                           break;
                         }
                       vf_old = vf_new;
-                    }
-                  
-                    /*Assert(vf_new < 0,ExcMessage("volume_fractions[grain_i] is negative. grain_i = "
-                             + std::to_string(grain_i) + ", volume_fractions[grain_i] = " + std::to_string(get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i))
-                             + ", derivatives.first[grain_i] = " + std::to_string(derivatives.first[grain_i])));*/                  
+                    }                 
 
                   set_volume_fractions_grains(cpo_index,data,mineral_i,grain_i,vf_new);
                   sum_volume_fractions += vf_new;
@@ -805,7 +802,7 @@ namespace aspect
             }
             case CPODerivativeAlgorithm::drexpp:
             {
-              const double pressure = 2e09;
+              const double pressure = 3e+8;
               const DeformationType deformation_type = determine_deformation_type(deformation_type_selector[mineral_i],
                                                                                   position,
                                                                                   temperature,
@@ -834,12 +831,13 @@ namespace aspect
               */
 
               const double strain = this->get_time() *std::sqrt(std::max(-second_invariant(deviatoric_strain_rate), 0.));
-              const double const_C = exp(-10.0);
+              /*const double const_C = exp(-10.0);
               const double const_g = 13.8;
-              const double T_melt = 1770 + 273.15; // Have to get a better constrain from Katz et al (2203)
+              const double T_melt = 1770 + 273.15; // Have to get a better constrain from Katz et al (2003)*/
               const double avrami_exponent = 1.48;
               const double strain_critical = 0.25;
-              const double rate_of_transformation = const_C * exp( const_g * (temperature/T_melt) );
+              //const double rate_of_transformation = const_C * exp( const_g * (temperature/T_melt) );
+              const double rate_of_transformation = exp(-1.85);
               double aggregate_recrystalization_increment;
               std::cout<<"Strain at timestep = "<<strain<<"\n";
 
@@ -1890,7 +1888,6 @@ namespace aspect
 
               prm.enter_subsection("D-Rex 2004");
               {
-                prm.declare_entry ("Mobility", "125",
                 prm.declare_entry ("Mobility", "125",
                                    Patterns::Double(0),
                                    "The dimensionless intrinsic grain boundary mobility for both olivine and enstatite.");
