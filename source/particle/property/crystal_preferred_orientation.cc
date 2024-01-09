@@ -707,7 +707,7 @@ namespace aspect
                                                               + ", derivatives.first[grain_i] = " + std::to_string(derivatives.first[grain_i])));
 
                       //vf_new = get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i) + dt * (vf_new/sum_of_volumes) *  derivatives.first[grain_i];
-                      vf_new = get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i) + dt * (vf_new/sum_of_volumes) * derivatives.first[grain_i];
+                      vf_new = get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i) + dt  * derivatives.first[grain_i];
 
                       Assert(std::isfinite(get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i)),ExcMessage("volume_fractions[grain_i] is not finite. grain_i = "
                              + std::to_string(grain_i) + ", volume_fractions[grain_i] = " + std::to_string(get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i))
@@ -833,10 +833,10 @@ namespace aspect
               const double strain = this->get_time() *std::sqrt(std::max(-second_invariant(deviatoric_strain_rate), 0.));
               /*const double const_C = exp(-10.0);
               const double const_g = 13.8;
-              const double T_melt = 1770 + 273.15; // Have to get a better constrain from Katz et al (2003)*/
+              const double T_melt = 1770 + 273.15; // Have to get a better constrain from Katz et al (2003)
+              const double rate_of_transformation = const_C * exp( const_g * (temperature/T_melt) );*/
               const double avrami_exponent = 1.48;
-              const double strain_critical = 0.25;
-              //const double rate_of_transformation = const_C * exp( const_g * (temperature/T_melt) );
+              const double strain_critical = 0.25;              
               const double rate_of_transformation = exp(-1.85);
               double aggregate_recrystalization_increment;
               std::cout<<"Strain at timestep = "<<strain<<"\n";
