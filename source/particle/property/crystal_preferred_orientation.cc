@@ -1513,7 +1513,7 @@ namespace aspect
               {
                 const double rhos = std::pow(tau[indices[slip_system_i]],drexpp_exponent_p[mineral_i]-drexpp_stress_exponent[mineral_i]) *
                                     std::pow(std::abs(gamma*beta[indices[slip_system_i]]),drexpp_exponent_p[mineral_i]/drexpp_stress_exponent[mineral_i]);
-                strain_energy[grain_i] += rhos;
+                strain_energy[grain_i] += rhos * std::exp(-drexpp_nucleation_efficiency[mineral_i] * rhos * rhos);
                 alpha += std::exp(-drexpp_nucleation_efficiency[mineral_i] * rhos * rhos);
                 Assert(isfinite(strain_energy[grain_i]), ExcMessage("strain_energy[" + std::to_string(grain_i) + "] is not finite: " + std::to_string(strain_energy[grain_i])
                                                                     + ", rhos (" + std::to_string(slip_system_i) + ") = " + std::to_string(rhos)
