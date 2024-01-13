@@ -1374,6 +1374,7 @@ namespace aspect
         std::vector<double> grain_boundary_sliding_fractions(n_grains);
         std::vector<double> def_mech_factor(n_grains);
         std::vector<Tensor<1,3>> spin_vectors(n_grains);
+        std::vector<double> subgrain_rotation_fractions(n_grains);
 
         // first compute the strain energy and G for all grains
         for (unsigned int grain_i = 0; grain_i < n_grains; ++grain_i)
@@ -1509,6 +1510,7 @@ namespace aspect
             // this and writes each term using the indices created when calculating bigI.
             // Note tau = RRSS = (tau_m^s/tau_o), this why we get tau^(p-n)
             double alpha = 0.0;
+            subgrain_rotation_fractions[grain_i] = 0.0;
             for (unsigned int slip_system_i = 0; slip_system_i < 4; ++slip_system_i)
               {
                 const double rhos = std::pow(tau[indices[slip_system_i]],drexpp_exponent_p[mineral_i]-drexpp_stress_exponent[mineral_i]) *
@@ -1523,6 +1525,7 @@ namespace aspect
                                                    + ", rhos (" + std::to_string(slip_system_i) + ") = " + std::to_string(rhos)
                                                    + ", nucleation_efficiency = " + std::to_string(nucleation_efficiency) + "."));
               }
+              subgrain_rotation_fractions[grain_i] = alpha;
           }
 
         for (unsigned int grain_i = 0; grain_i < n_grains; ++grain_i)
@@ -1574,7 +1577,12 @@ namespace aspect
         //std::cout<<"total_grain_boundary sliding fraction = "<<total_grain_boundary_sliding_fraction<<"\ttotal subgrain rotation fraction = "<<total_subgrain_rotation_fraction<<std::endl;
         for (unsigned int grain_i = 0; grain_i < n_grains; ++grain_i)
           {
-            recrystalized_fractions[grain_i] = def_mech_factor[grain_i] * aggregate_recrystalization_increment;
+            recrystalized_fractions[grain_i] = def_mech_factor[grain_i] * (4-subgrain_rotation_fractions[grain_i]) * aggregate_recrystalization_increment;
+            if(grain_i != 0)
+            {
+              std::cout<<"alpha for grain "<<grain_i<<" = "<<subgrain_rotation_fractions[grain_i]<<"\t 1-alpha for grain "<<grain_i<<" = "<<4-subgrain_rotation_fractions[grain_i]<<std::endl;
+            }
+            
           }
 
         this->recrystalize_grains(cpo_index,
