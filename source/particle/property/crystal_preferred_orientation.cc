@@ -1265,14 +1265,10 @@ namespace aspect
               }
           
              size_t n_recrystalized_grains = std::floor((recrystalization_fractions[grain_i]*grain_volume)/recrystalized_grain_volume);
-            
-           if(n_recrystalized_grains * recrystalized_grain_volume > grain_volume)
-           {
-            n_recrystalized_grains = n_recrystalized_grains - 1;
-           }
 
            if (n_recrystalized_grains > 0)
               { 
+                std::cout<<"No of grains nucleated from grain "<<grain_i<<" = "<<n_recrystalized_grains<<std::endl;
                 double grain_volume_left = grain_volume-n_recrystalized_grains*recrystalized_grain_volume;
                  if (grain_volume_left <= 0)
                   {
@@ -1577,19 +1573,19 @@ namespace aspect
             if(aggregate_recrystalization_increment != 0)
             {
               recrystalized_fractions[grain_i] = def_mech_factor[grain_i] * (subgrain_rotation_fractions[grain_i]) * aggregate_recrystalization_increment;      
-              this->recrystalize_grains(cpo_index,
-                                  data,
-                                  mineral_i,
-                                  recrystalized_grain_volume,
-                                  recrystalized_fractions,
-                                  strain_energy);
             }
-
             else
               {
                 recrystalized_fractions[grain_i] = 0;
               } 
           }
+        
+        this->recrystalize_grains(cpo_index,
+                                  data,
+                                  mineral_i,
+                                  recrystalized_grain_volume,
+                                  recrystalized_fractions,
+                                  strain_energy);
 
         double mean_strain_energy = 0.0;
         double sum_volume ;
