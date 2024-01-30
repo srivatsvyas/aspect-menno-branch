@@ -274,7 +274,7 @@ namespace aspect
                                      const Tensor<2,3> &velocity_gradient_tensor,
                                      const std::array<double,4> ref_resolved_shear_stress,
                                      const double recrystalized_grain_size,
-                                     const double aggregate_recrystalization_increment,
+                                     const SymmetricTensor<2,dim> &deviatoric_strain_rate,
                                      const std::vector<double> &volume_fractions,
                                      const std::vector<double> &diffusion_pre_viscosities,
                                      const std::vector<double> &diffusion_grain_size_exponent,

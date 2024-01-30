@@ -803,6 +803,7 @@ namespace aspect
             case CPODerivativeAlgorithm::drexpp:
             {
               const double pressure = 3e+8;
+              const double t =this-> get_time();
               const DeformationType deformation_type = determine_deformation_type(deformation_type_selector[mineral_i],
                                                                                   position,
                                                                                   temperature,
@@ -814,40 +815,7 @@ namespace aspect
                                                                                   water_content);
 
               set_deformation_type(cpo_index,data,mineral_i,static_cast<unsigned int>(deformation_type));
-              const double t =this-> get_time();
-              /*
-
-                 The following part of the algorithm describes the rate of recrystalization of new strain-free grains. This is done by using the
-                 Johnson-Avrami-Mehl-Kolmogodorov thoery of transformation. The equations and the values for the variables are taken from Cross and Skemer (2019).
-
-                 Incremental recrystalization fraction = n * beta * (strain - critical strain)^(n - 1) * exp( - beta * (strain - critical strain) ^ n )
-                 where
-                 n -> avrami exponent
-                 beta -> rate of transformation
-                 beta -> C * exp( g * ( T / T_melt ) )
-                 C and g are experimental constants
-                 critical strain -> strain at which dynamic recrystalization starts
-
-              */
-
-              const double strain = this->get_time() *std::sqrt(std::max(-second_invariant(deviatoric_strain_rate), 0.));
-              /*const double const_C = exp(-10.0);
-              const double const_g = 13.8;
-              const double T_melt = 1770 + 273.15; // Have to get a better constrain from Katz et al (2003)
-              const double rate_of_transformation = const_C * exp( const_g * (temperature/T_melt) );*/
-              const double avrami_exponent = 1.48;
-              const double strain_critical = 0.25;              
-              const double rate_of_transformation = exp(-1.85);
-              double aggregate_recrystalization_increment;
-              std::cout<<"Strain at timestep = "<<strain<<"\n";
-
-              if (strain_critical < strain)
-                {
-                  aggregate_recrystalization_increment = avrami_exponent * rate_of_transformation * std::pow( strain - strain_critical , avrami_exponent - 1 ) * exp(-1 * (rate_of_transformation * std::pow( strain-strain_critical , avrami_exponent )));
-                  std::cout<<"aggregate recrystalization = "<<aggregate_recrystalization_increment<<std::endl;
-                }
-              else
-                aggregate_recrystalization_increment = 0;
+             
 
               const std::array<double,4> ref_resolved_shear_stress = reference_resolved_shear_stress_from_deformation_type(deformation_type);
 
@@ -998,7 +966,7 @@ namespace aspect
                                                 velocity_gradient_tensor,
                                                 ref_resolved_shear_stress,
                                                 recrystalized_grain_volume[mineral_i],
-                                                aggregate_recrystalization_increment,
+                                                deviatoric_strain_rate,
                                                 volume_fractions,
                                                 diffusion_pre_viscosities,
                                                 diffusion_grain_size_exponent,
@@ -1343,7 +1311,7 @@ namespace aspect
                                                                    const Tensor<2,3> &velocity_gradient_tensor,
                                                                    const std::array<double,4> ref_resolved_shear_stress,
                                                                    const double recrystalized_grain_volume,
-                                                                   const double aggregate_recrystalization_increment,
+                                                                   const SymmetricTensor<2,dim> &deviatoric_strain_rate,
                                                                    const std::vector<double> &volume_fractions,
                                                                    const std::vector<double> &diffusion_pre_viscosities,
                                                                    const std::vector<double> &diffusion_grain_size_exponent,
@@ -1362,6 +1330,8 @@ namespace aspect
         std::vector<double> def_mech_factor(n_grains);
         std::vector<Tensor<1,3>> spin_vectors(n_grains);
         std::vector<double> subgrain_rotation_fractions(n_grains);
+        std::vector<double> schmid_factor_max(n_grains);
+        std::vector<double> recrystalization_increment(n_grains);
 
         // first compute the strain energy and G for all grains
         for (unsigned int grain_i = 0; grain_i < n_grains; ++grain_i)
@@ -1412,11 +1382,19 @@ namespace aspect
                 // compute the element wise absolute value of the element wise
                 // division of BigI by tau (tau = ref_resolved_shear_stress).
                 std::array<double,4> q_abs;
+                std::array<double,4> schmid_factor;
+                const std::array< double, 3 > eigenvalues = dealii::eigenvalues(strain_rate);
+                const double nondimensionalization_value = std::max(std::abs(eigenvalues[0]),std::abs(eigenvalues[2]));
+                
                 for (unsigned int i = 0; i < 4; ++i)
                   {
                     q_abs[i] = std::abs(bigI[i] / tau[i]);
+                    schmid_factor[i] = (q_abs[i]/nondimensionalization_value)* (1/1.833);
                   }
-
+              
+                  schmid_factor_max[grain_i] = *std::max_element(schmid_factor.begin(), schmid_factor.end());
+                
+                
                 // here we find the indices starting at the largest value and ending at the smallest value
                 // and assign them to special variables. Because all the variables are absolute values,
                 // we can set them to a negative value to ignore them. This should be faster then deleting
@@ -1498,12 +1476,10 @@ namespace aspect
             // Note tau = RRSS = (tau_m^s/tau_o), this why we get tau^(p-n)
             double alpha = 0.0;
             subgrain_rotation_fractions[grain_i] = 0.0;
-            //std::cout<<"rhos = \t";
             for (unsigned int slip_system_i = 0; slip_system_i < 4; ++slip_system_i)
               {
                 const double rhos = std::pow(10,12) * std::pow(tau[indices[slip_system_i]],drexpp_exponent_p[mineral_i]-drexpp_stress_exponent[mineral_i]) *
                                     std::pow(std::abs(gamma*beta[indices[slip_system_i]]),drexpp_exponent_p[mineral_i]/drexpp_stress_exponent[mineral_i]);
-              //  std::cout<<rhos<<"\t";
                 strain_energy[grain_i] += rhos * std::exp(-drexpp_nucleation_efficiency[mineral_i] * rhos * rhos);
                 if(tau[indices[slip_system_i]] == 1)
                 {
@@ -1564,15 +1540,43 @@ namespace aspect
                 grain_boundary_sliding_fractions[grain_i] = 0;
                 def_mech_factor[grain_i] = 0;
               }
-
-
           }
+
+              /*
+
+                 The following part of the algorithm describes the rate of recrystalization of new strain-free grains. This is done by using the
+                 Johnson-Avrami-Mehl-Kolmogodorov thoery of transformation. The equations and the values for the variables are taken from Cross and Skemer (2019).
+
+                 Incremental recrystalization fraction = n * beta * (strain - critical strain)^(n - 1) * exp( - beta * (strain - critical strain) ^ n )
+                 where
+                 n -> avrami exponent
+                 beta -> rate of transformation
+                 beta -> C * exp( g * ( T / T_melt ) )
+                 C and g are experimental constants
+                 critical strain -> strain at which dynamic recrystalization starts
+
+              */
+              const double t =this-> get_time();
+              const double strain = this->get_time() *std::sqrt(std::max(-second_invariant(deviatoric_strain_rate), 0.));
+              const double avrami_exponent = 1.48;
+              const double strain_critical = 0.25;              
+              const double rate_of_transformation = exp(-1.85);
+              for (unsigned int grain_i = 0; grain_i < n_grains; grain_i++ )
+              if (strain_critical < (schmid_factor_max[grain_i] * strain))
+                {
+                  recrystalization_increment[grain_i] = avrami_exponent * rate_of_transformation * std::pow( (schmid_factor_max[grain_i] * strain) - strain_critical , avrami_exponent - 1 ) * exp(-1 * (rate_of_transformation * std::pow( (schmid_factor_max[grain_i] * strain)-strain_critical , avrami_exponent )));
+                }
+              else
+                {
+                  recrystalization_increment[grain_i] = 0; 
+                }
+       
 
         for (unsigned int grain_i = 0; grain_i < n_grains; ++grain_i)
           {
-            if(aggregate_recrystalization_increment != 0)
+            if(recrystalization_increment[grain_i] != 0)
             {
-              recrystalized_fractions[grain_i] = def_mech_factor[grain_i] * (subgrain_rotation_fractions[grain_i]) * aggregate_recrystalization_increment;      
+              recrystalized_fractions[grain_i] = def_mech_factor[grain_i]  * recrystalization_increment[grain_i];      
             }
             else
               {
