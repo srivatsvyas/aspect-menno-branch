@@ -925,39 +925,8 @@ namespace aspect
               // TODO to check if this is valid for the compressible case.
 
               const std::array<double, dim> eigenvalues = dealii::eigenvalues(deviatoric_stress);
-              double differential_stress = eigenvalues[0] - eigenvalues[dim -1];
+              const double differential_stress = eigenvalues[0] - eigenvalues[dim -1];
               std::cout<<"differential stress = "<<differential_stress<<std::endl;
-
-              /*
-                Calculation of the recrystallized grain size is done using the piezometer proposed by Van der Waal (1993).
-                d_{recrystallized} = A * \sigma^{m}
-                where
-                A - prefactor
-                m - stress exponent
-
-                The values for olivine is taken from Van der Waal (1993)
-                The values for pyroxene is taken from Speciale et al (2021)
-              */
-
-              std::array<double, 2> recrystalized_grain_size;
-              std::array<double, 2> half_recrystalized_grain_size;
-              std::array<double, 2> recrystalized_grain_volume;
-              std::array<double, 2> A = {{0.015,std::pow(10,3.8)}};
-              std::array<double, 2> m = {{-1.33, -1.28}};
-
-              if ( t != 0 )
-                {
-                  recrystalized_grain_size[mineral_i] = A[mineral_i] * std::pow(differential_stress/1e6, m[mineral_i]);
-                }
-              else
-                {
-                  recrystalized_grain_size[mineral_i] = 0.5;
-                }
-
-              half_recrystalized_grain_size[mineral_i] = 0.5 * recrystalized_grain_size[mineral_i];
-              recrystalized_grain_volume[mineral_i] = (4./3.) * numbers::PI * half_recrystalized_grain_size[mineral_i] * half_recrystalized_grain_size[mineral_i] * half_recrystalized_grain_size[mineral_i];
-
-              std::cout<<"Recrystalized grain volume for mineral "<<mineral_i<<" = "<<recrystalized_grain_volume[mineral_i]<<std::endl;
 
               return compute_derivatives_drexpp(cpo_index,
                                                 data,
@@ -965,7 +934,7 @@ namespace aspect
                                                 strain_rate_3d,
                                                 velocity_gradient_tensor,
                                                 ref_resolved_shear_stress,
-                                                recrystalized_grain_volume[mineral_i],
+                                                differential_stress,
                                                 deviatoric_strain_rate,
                                                 volume_fractions,
                                                 diffusion_pre_viscosities,
@@ -1197,7 +1166,7 @@ namespace aspect
       CrystalPreferredOrientation<dim>::recrystalize_grains(const unsigned int cpo_index,
                                                             const ArrayView<double> &data,
                                                             const unsigned int mineral_i,
-                                                            const double recrystalized_grain_volume,
+                                                            const std::vector<double> &recrystalized_grain_volume,
                                                             const std::vector<double> &recrystalization_fractions,
                                                             std::vector<double> &strain_energy) const
       {
@@ -1232,15 +1201,16 @@ namespace aspect
                 temp_total_volume += get_volume_fractions_grains(cpo_index,data,mineral_i,i);
               }
           
-             size_t n_recrystalized_grains = std::floor((recrystalization_fractions[grain_i]*grain_volume)/recrystalized_grain_volume);
+             size_t n_recrystalized_grains = std::floor((recrystalization_fractions[grain_i]*grain_volume)/recrystalized_grain_volume[grain_i]);
 
            if (n_recrystalized_grains > 0)
               { 
                 std::cout<<"No of grains nucleated from grain "<<grain_i<<" = "<<n_recrystalized_grains<<std::endl;
-                double grain_volume_left = grain_volume-n_recrystalized_grains*recrystalized_grain_volume;
+                double grain_volume_left = grain_volume-n_recrystalized_grains*recrystalized_grain_volume[grain_i];
                  if (grain_volume_left <= 0)
                   {
-                    grain_volume_left = 0;
+                    n_recrystalized_grains += -1;
+                    grain_volume_left =  grain_volume-n_recrystalized_grains*recrystalized_grain_volume[grain_i];
                   }
 
                 //std::cout<<"Grain volume left = "<<grain_volume_left<<"\tThe volume of nucleated grains = "<<n_recrystalized_grains * recrystalized_grain_volume<<"\tparent grain volume = "<<grain_volume<<"\t volume difference = "<<grain_volume - (n_recrystalized_grains * recrystalized_grain_volume)<<std::endl;
@@ -1272,7 +1242,7 @@ namespace aspect
                 Tensor<2,3> random_deflection;
                 for (unsigned int recrystalize_grain_i = 0; recrystalize_grain_i < n_recrystalized_grains; ++recrystalize_grain_i)
                   {
-                    set_volume_fractions_grains(cpo_index,data,mineral_i,permutation_vector[permutation_vector_counter],recrystalized_grain_volume);
+                    set_volume_fractions_grains(cpo_index,data,mineral_i,permutation_vector[permutation_vector_counter],recrystalized_grain_volume[grain_i]);
 
                     // TODO: compute random rotation matrix between two degrees and apply it
                     this->compute_random_rotation_matrix(random_deflection);
@@ -1310,7 +1280,7 @@ namespace aspect
                                                                    const SymmetricTensor<2,3> &strain_rate,
                                                                    const Tensor<2,3> &velocity_gradient_tensor,
                                                                    const std::array<double,4> ref_resolved_shear_stress,
-                                                                   const double recrystalized_grain_volume,
+                                                                   const double differential_stress,
                                                                    const SymmetricTensor<2,dim> &deviatoric_strain_rate,
                                                                    const std::vector<double> &volume_fractions,
                                                                    const std::vector<double> &diffusion_pre_viscosities,
@@ -1325,13 +1295,15 @@ namespace aspect
         const std::array<double, 4> &tau = ref_resolved_shear_stress;
 
         std::vector<double> strain_energy(n_grains);
+        std::vector<double> dislocation_density(n_grains);
         std::vector<double> recrystalized_fractions(n_grains);
         std::vector<double> grain_boundary_sliding_fractions(n_grains);
         std::vector<double> def_mech_factor(n_grains);
         std::vector<Tensor<1,3>> spin_vectors(n_grains);
-        std::vector<double> subgrain_rotation_fractions(n_grains);
         std::vector<double> schmid_factor_max(n_grains);
         std::vector<double> recrystalization_increment(n_grains);
+        std::vector<double> recrystalized_grain_volume(n_grains);
+        const double t =this-> get_time();
 
         // first compute the strain energy and G for all grains
         for (unsigned int grain_i = 0; grain_i < n_grains; ++grain_i)
@@ -1475,16 +1447,16 @@ namespace aspect
             // this and writes each term using the indices created when calculating bigI.
             // Note tau = RRSS = (tau_m^s/tau_o), this why we get tau^(p-n)
             double alpha = 0.0;
-            subgrain_rotation_fractions[grain_i] = 0.0;
+
+            const double shear_modulus = 8 * std::pow(10,10);
+            const double burgers_vector = 5 * std::pow(10,-9);
+
             for (unsigned int slip_system_i = 0; slip_system_i < 4; ++slip_system_i)
               {
                 const double rhos = std::pow(10,12) * std::pow(tau[indices[slip_system_i]],drexpp_exponent_p[mineral_i]-drexpp_stress_exponent[mineral_i]) *
                                     std::pow(std::abs(gamma*beta[indices[slip_system_i]]),drexpp_exponent_p[mineral_i]/drexpp_stress_exponent[mineral_i]);
-                strain_energy[grain_i] += rhos * std::exp(-drexpp_nucleation_efficiency[mineral_i] * rhos * rhos);
-                if(tau[indices[slip_system_i]] == 1)
-                {
-                  subgrain_rotation_fractions[grain_i] = std::exp(-drexpp_nucleation_efficiency[mineral_i] * rhos * rhos);
-                }
+                dislocation_density[grain_i] += (1 -(std::exp(-drexpp_nucleation_efficiency[mineral_i] * rhos * rhos))) * rhos;
+                strain_energy[grain_i] += rhos * shear_modulus * std::pow(burgers_vector,2) * std::exp(-drexpp_nucleation_efficiency[mineral_i] * rhos * rhos);
                 alpha += std::exp(-drexpp_nucleation_efficiency[mineral_i] * rhos * rhos);
                 Assert(isfinite(strain_energy[grain_i]), ExcMessage("strain_energy[" + std::to_string(grain_i) + "] is not finite: " + std::to_string(strain_energy[grain_i])
                                                                     + ", rhos (" + std::to_string(slip_system_i) + ") = " + std::to_string(rhos)
@@ -1494,7 +1466,7 @@ namespace aspect
                                                    + ", rhos (" + std::to_string(slip_system_i) + ") = " + std::to_string(rhos)
                                                    + ", nucleation_efficiency = " + std::to_string(nucleation_efficiency) + "."));
               }
-            
+            //std::cout<<"Strain energy of grain "<<grain_i<<" = "<<strain_energy[grain_i] <<"\n";            
           }
 
         for (unsigned int grain_i = 0; grain_i < n_grains; ++grain_i)
@@ -1541,6 +1513,39 @@ namespace aspect
                 def_mech_factor[grain_i] = 0;
               }
           }
+           /*
+                Calculation of the recrystallized grain size is done using the piezometer proposed by Van der Waal (1993).
+                d_{recrystallized} = A * \sigma^{m}
+                where
+                A - prefactor
+                m - stress exponent
+
+                The values for olivine is taken from Van der Waal (1993)
+                The values for pyroxene is taken from Speciale et al (2021)
+              */
+                double recrystalized_grain_size;
+                double half_recrystalized_grain_size;
+                std::array<double, 2> A = {{0.015,std::pow(10,3.8)}};
+                std::array<double, 2> m = {{-1.33, -1.28}};
+
+              for (unsigned int grain_i = 0; grain_i < n_grains; grain_i++)
+              {
+
+
+                  if ( t != 0 ) 
+                    {
+                      recrystalized_grain_size = A[mineral_i] * std::pow((schmid_factor_max[grain_i] * 2) * differential_stress/1e6, m[mineral_i]);
+                    }
+                  else
+                    {
+                      recrystalized_grain_size = 0.5;
+                    }
+
+                half_recrystalized_grain_size = 0.5 * recrystalized_grain_size;
+                recrystalized_grain_volume[grain_i] = (4./3.) * numbers::PI * half_recrystalized_grain_size * half_recrystalized_grain_size * half_recrystalized_grain_size;
+              }
+              
+              
 
               /*
 
@@ -1556,7 +1561,6 @@ namespace aspect
                  critical strain -> strain at which dynamic recrystalization starts
 
               */
-              const double t =this-> get_time();
               const double strain = this->get_time() *std::sqrt(std::max(-second_invariant(deviatoric_strain_rate), 0.));
               const double avrami_exponent = 1.48;
               const double strain_critical = 0.25;              

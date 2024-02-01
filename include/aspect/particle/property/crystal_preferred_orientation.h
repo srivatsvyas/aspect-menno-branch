@@ -273,7 +273,7 @@ namespace aspect
                                      const SymmetricTensor<2,3> &strain_rate_3d,
                                      const Tensor<2,3> &velocity_gradient_tensor,
                                      const std::array<double,4> ref_resolved_shear_stress,
-                                     const double recrystalized_grain_size,
+                                     const double differential_stress,
                                      const SymmetricTensor<2,dim> &deviatoric_strain_rate,
                                      const std::vector<double> &volume_fractions,
                                      const std::vector<double> &diffusion_pre_viscosities,
@@ -284,7 +284,7 @@ namespace aspect
           recrystalize_grains(const unsigned int cpo_index,
                               const ArrayView<double> &data,
                               const unsigned int mineral_i,
-                              const double recrystalized_grainsize,
+                              const std::vector<double> & recrystalized_grainsize,
                               const std::vector<double> &recrystalized_fraction,
                               std::vector<double> &strain_energy) const;
 
