@@ -139,16 +139,23 @@ namespace aspect
         // the layout of the data vector per perticle is the following:
         // 1. M mineral times
         //    1.1  olivine deformation type   -> 1 double, at location
-        //                                      => data_position + 0 + mineral_i * (n_grains * 10 + 2)
+        //                                      => data_position + 0 + mineral_i * (n_grains * 15 + 2)
         //    2.1. Mineral volume fraction    -> 1 double, at location
-        //                                      => data_position + 1 + mineral_i *(n_grains * 10 + 2)
+        //                                      => data_position + 1 + mineral_i *(n_grains * 15 + 2)
         //    2.2. N grains times:
         //         2.1. volume fraction grain -> 1 double, at location:
-        //                                      => data_position + 2 + i_grain * 10 + mineral_i *(n_grains * 10 + 2), or
+        //                                      => data_position + 2 + i_grain * 15 + mineral_i *(n_grains * 15 + 2), or
         //                                      => data_position + 2 + i_grain * (2 * Tensor<2,3>::n_independent_components+ 2) + mineral_i * (n_grains * 10 + 2)
         //         2.2. rotation matrix grain -> 9 (Tensor<2,dim>::n_independent_components) doubles, starts at:
-        //                                      => data_position + 3 + i_grain * 10 + mineral_i * (n_grains * 10 + 2), or
+        //                                      => data_position + 3 + i_grain * 15 + mineral_i * (n_grains * 15 + 2), or
         //                                      => data_position + 3 + i_grain * (2 * Tensor<2,3>::n_independent_components+ 2) + mineral_i * (n_grains * 10 + 2)
+        //         2.3. volume derivative grain -> 1 double at location:
+        //                                      => data_position + 12 + i_grain * 15 + mineral_i *(n_grains * 15 + 2), or
+        //                                      => data_position + 12 + i_graib * 2 * Tensor<2,3>::n_independent_components+ 2) + mineral_i * (n_grains * 10 + 2)
+        //         2.4. dislocation density grain -> 4 doubles, at location
+        //                                      => data_position + 13 + i_grain * 15 + mineral_i *(n_grains * 15 + 2), or
+        //                                      => data_position + 13 + i_grain * 2 * Tensor<2,3>::n_independent_components+ 2) + mineral_i * (n_grains * 10 + 2)
+        //
         //
         // Note that we store exactly the same number of grains of all minerals (e.g. olivine and enstatite
         // grains), although their volume fractions may not be the same. We need a minimum amount
@@ -162,11 +169,15 @@ namespace aspect
         std::vector<double> deformation_type(n_minerals, -1.0);
         std::vector<std::vector<double >>volume_fractions_grains(n_minerals);
         std::vector<std::vector<Tensor<2,3>>> rotation_matrices_grains(n_minerals);
+        std::vector<std::vector<double>>volume_derivative_grains(n_minerals);
+        std::vector<std::vector<std::array<double,4>>>dislocation_density_grains(n_minerals);
 
         for (unsigned int mineral_i = 0; mineral_i < n_minerals; ++mineral_i)
           {
             volume_fractions_grains[mineral_i].resize(n_grains);
             rotation_matrices_grains[mineral_i].resize(n_grains);
+            volume_derivative_grains[mineral_i].resize(n_grains);
+            dislocation_density_grains[mineral_i].resize(n_grains);
 
             // This will be set by the initial grain subsection.
             bool use_world_builder = false;
@@ -202,6 +213,12 @@ namespace aspect
                             }
 
                           this->compute_random_rotation_matrix(rotation_matrices_grains[mineral_i][grain_i]);
+                          volume_derivative_grains[mineral_i][grain_i] = 0;
+                          for(unsigned int i = 0; i<4; ++i)
+                          {
+                            dislocation_density_grains[mineral_i][grain_i][i] = 0.0;
+                          }
+                          
                         }
                       break;
                     }
@@ -212,6 +229,11 @@ namespace aspect
                           const double initial_volume_fraction = 1.0/n_grains;
                           volume_fractions_grains[mineral_i][grain_i] = initial_volume_fraction;
                           this->compute_random_rotation_matrix(rotation_matrices_grains[mineral_i][grain_i]);
+                          volume_derivative_grains[mineral_i][grain_i] = 0;
+                          for(unsigned int i = 0; i<4; ++i)
+                          {
+                            dislocation_density_grains[mineral_i][grain_i][i] = 0.0;
+                          }
                         }
 
                       break;
@@ -236,6 +258,11 @@ namespace aspect
                     const dealii::TableIndices<2> index = Tensor<2,3>::unrolled_to_component_indices(i);
                     data.emplace_back(rotation_matrices_grains[mineral_i][grain_i][index]);
                   }
+                data.emplace_back(volume_derivative_grains[mineral_i][grain_i]);
+                for(unsigned int slip_system_i = 0; slip_system_i < 4; ++slip_system_i)
+                {
+                  data.emplace_back(dislocation_density_grains[mineral_i][grain_i][slip_system_i]);
+                }                
               }
           }
       }
@@ -995,7 +1022,8 @@ namespace aspect
         // create output variables
         std::vector<double> deriv_volume_fractions(n_grains);
         std::vector<Tensor<2,3>> deriv_a_cosine_matrices(n_grains);
-
+        std::vector<double> volume_derivative(n_grains);
+        std::array<double,4>dislocation_density;
         // create shortcuts
         const std::array<double, 4> &tau = ref_resolved_shear_stress;
 
@@ -1115,17 +1143,20 @@ namespace aspect
             // code (https://github.com/cthissen/Drex-MATLAB) corrected
             // this and writes each term using the indices created when calculating bigI.
             // Note tau = RRSS = (tau_m^s/tau_o), this why we get tau^(p-n)
+
+            dislocation_density = get_dislocation_density_grains(cpo_index,data,mineral_i,grain_i);
             for (unsigned int slip_system_i = 0; slip_system_i < 4; ++slip_system_i)
               {
                 const double rhos = std::pow(tau[indices[slip_system_i]],exponent_p-stress_exponent) *
                                     std::pow(std::abs(gamma*beta[indices[slip_system_i]]),exponent_p/stress_exponent);
+                dislocation_density[indices[slip_system_i]] = rhos;                    
                 strain_energy[grain_i] += rhos * std::exp(-nucleation_efficiency * rhos * rhos);
 
                 Assert(isfinite(strain_energy[grain_i]), ExcMessage("strain_energy[" + std::to_string(grain_i) + "] is not finite: " + std::to_string(strain_energy[grain_i])
                                                                     + ", rhos (" + std::to_string(slip_system_i) + ") = " + std::to_string(rhos)
                                                                     + ", nucleation_efficiency = " + std::to_string(nucleation_efficiency) + "."));
               }
-
+            set_dislocation_density_grains(cpo_index,data,mineral_i,grain_i,dislocation_density);
 
             // compute the derivative of the rotation matrix: \frac{\partial a_{ij}}{\partial t}
             // (Eq. 9, Kaminski & Ribe 2001)
@@ -1152,7 +1183,7 @@ namespace aspect
           {
             // Different than D-Rex. Here we actually only compute the derivative and do not multiply it with the volume_fractions. We do that when we advect.
             deriv_volume_fractions[grain_i] = get_volume_fraction_mineral(cpo_index,data,mineral_i) * mobility * (mean_strain_energy - strain_energy[grain_i]) * nondimensionalization_value;
-
+            set_volume_fractions_derivatives_grains(cpo_index,data,mineral_i,grain_i,deriv_volume_fractions[grain_i]);
             Assert(isfinite(deriv_volume_fractions[grain_i]),
                    ExcMessage("deriv_volume_fractions[" + std::to_string(grain_i) + "] is not finite: "
                               + std::to_string(deriv_volume_fractions[grain_i])));
@@ -1290,12 +1321,14 @@ namespace aspect
         // create output variables
         std::vector<double> deriv_volume_fractions(n_grains);
         std::vector<Tensor<2,3>> deriv_a_cosine_matrices(n_grains);
+        std::vector<double> volume_derivative(n_grains);
+        std::array<double, 4>dislocation_density;
 
         // create shorcuts
         const std::array<double, 4> &tau = ref_resolved_shear_stress;
-
+        
+        // create local variables
         std::vector<double> strain_energy(n_grains);
-        std::vector<double> dislocation_density(n_grains);
         std::vector<double> recrystalized_fractions(n_grains);
         std::vector<double> grain_boundary_sliding_fractions(n_grains);
         std::vector<double> def_mech_factor(n_grains);
@@ -1344,7 +1377,7 @@ namespace aspect
             Tensor<2,3> schmidt_tensor;
 
             // The value in this if statement is arbitrary. Has to be further checked out to for a more "realistic value".
-            if (bigI.norm() < 1e-20)
+            if (bigI.norm() < 1e-30)
               {
                 // In this case there is no shear, only (possibly) a rotation. So \gamma_y and/or G should be zero.
                 // Which is the default value, so do nothing.
@@ -1447,17 +1480,16 @@ namespace aspect
             // this and writes each term using the indices created when calculating bigI.
             // Note tau = RRSS = (tau_m^s/tau_o), this why we get tau^(p-n)
             double alpha = 0.0;
-
+            dislocation_density = get_dislocation_density_grains(cpo_index,data,mineral_i,grain_i);
             const double shear_modulus = 8 * std::pow(10,10);
             const double burgers_vector = 5 * std::pow(10,-9);
-
             for (unsigned int slip_system_i = 0; slip_system_i < 4; ++slip_system_i)
               {
-                const double rhos = std::pow(10,12) * std::pow(tau[indices[slip_system_i]],drexpp_exponent_p[mineral_i]-drexpp_stress_exponent[mineral_i]) *
-                                    std::pow(std::abs(gamma*beta[indices[slip_system_i]]),drexpp_exponent_p[mineral_i]/drexpp_stress_exponent[mineral_i]);
-                dislocation_density[grain_i] += (1 -(std::exp(-drexpp_nucleation_efficiency[mineral_i] * rhos * rhos))) * rhos;
+                
+                const double rhos =dislocation_density[indices[slip_system_i]] + ( std::pow(10,12) * std::pow(tau[indices[slip_system_i]],drexpp_exponent_p[mineral_i]-drexpp_stress_exponent[mineral_i]) *
+                                    std::pow(std::abs(gamma*beta[indices[slip_system_i]]),drexpp_exponent_p[mineral_i]/drexpp_stress_exponent[mineral_i]));
+                dislocation_density[indices[slip_system_i]] = (1 -(std::exp(-drexpp_nucleation_efficiency[mineral_i] * rhos * rhos))) * rhos;
                 strain_energy[grain_i] += rhos * shear_modulus * std::pow(burgers_vector,2) * std::exp(-drexpp_nucleation_efficiency[mineral_i] * rhos * rhos);
-                alpha += std::exp(-drexpp_nucleation_efficiency[mineral_i] * rhos * rhos);
                 Assert(isfinite(strain_energy[grain_i]), ExcMessage("strain_energy[" + std::to_string(grain_i) + "] is not finite: " + std::to_string(strain_energy[grain_i])
                                                                     + ", rhos (" + std::to_string(slip_system_i) + ") = " + std::to_string(rhos)
                                                                     + ", nucleation_efficiency = " + std::to_string(nucleation_efficiency) + "."));
@@ -1466,6 +1498,7 @@ namespace aspect
                                                    + ", rhos (" + std::to_string(slip_system_i) + ") = " + std::to_string(rhos)
                                                    + ", nucleation_efficiency = " + std::to_string(nucleation_efficiency) + "."));
               }
+            set_dislocation_density_grains(cpo_index,data,mineral_i,grain_i,dislocation_density);
             //std::cout<<"Strain energy of grain "<<grain_i<<" = "<<strain_energy[grain_i] <<"\n";            
           }
 
@@ -1530,8 +1563,6 @@ namespace aspect
 
               for (unsigned int grain_i = 0; grain_i < n_grains; grain_i++)
               {
-
-
                   if ( t != 0 ) 
                     {
                       recrystalized_grain_size = A[mineral_i] * std::pow((schmid_factor_max[grain_i] * 2) * differential_stress/1e6, m[mineral_i]);
@@ -1543,9 +1574,7 @@ namespace aspect
 
                 half_recrystalized_grain_size = 0.5 * recrystalized_grain_size;
                 recrystalized_grain_volume[grain_i] = (4./3.) * numbers::PI * half_recrystalized_grain_size * half_recrystalized_grain_size * half_recrystalized_grain_size;
-              }
-              
-              
+              }              
 
               /*
 
@@ -1632,11 +1661,16 @@ namespace aspect
             double volume_fraction_grain = get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i);
             if (volume_fraction_grain != 0)
               {
-                // Different than D-Rex. Here we actually only compute the derivative and do not multiply it with the volume_fractions. We do that when we advect.<
+                // Different than D-Rex. Here we actually only compute the derivative and do not multiply it with the volume_fractions. We do that when we advect.
                 deriv_volume_fractions[grain_i] = get_volume_fraction_mineral(cpo_index,data,mineral_i) *  drexpp_mobility[mineral_i] * (mean_strain_energy - strain_energy[grain_i]);
+                set_volume_fractions_derivatives_grains(cpo_index,data,mineral_i,grain_i,deriv_volume_fractions[grain_i]);
               }
             else
+            {
               deriv_volume_fractions[grain_i] = 0;
+              set_volume_fractions_derivatives_grains(cpo_index,data,mineral_i,grain_i,deriv_volume_fractions[grain_i]);
+            }
+              
           }
 
         return std::pair<std::vector<double>, std::vector<Tensor<2,3>>>(deriv_volume_fractions, deriv_a_cosine_matrices);

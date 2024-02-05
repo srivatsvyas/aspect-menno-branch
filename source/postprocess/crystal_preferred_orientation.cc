@@ -226,6 +226,7 @@ namespace aspect
 
       std::vector<std::vector<Tensor<2,3>>> rotation_matrices (n_minerals, {n_grains,Tensor<2,3>()});
       std::vector<std::vector<std::array<double,3>>> euler_angles(n_minerals, {n_grains,{{0}}});
+      std::array<double,4>dislocation_density;
 
       // write unweighted header
       if (write_raw_cpo.size() != 0)
@@ -256,6 +257,18 @@ namespace aspect
                                               << "mineral_" << write_raw_cpo[property_i].first << "_EA_theta" << " "
                                               << "mineral_" << write_raw_cpo[property_i].first << "_EA_z" << " ";
                     break;
+                  
+                  case Output::VolumeDerivative:
+                    string_stream_content_raw << "mineral_" << write_raw_cpo[property_i].first << "_Volume_Derivative" << " ";
+                    break;
+                  
+                  case Output::DislocationDensity:
+                    string_stream_content_raw << "mineral_" << write_raw_cpo[property_i].first << "_Dislocation_Density_0" << " "
+                                              << "mineral_" << write_raw_cpo[property_i].first << "_Dislocation_Density_1" << " "
+                                              << "mineral_" << write_raw_cpo[property_i].first << "_Dislocation_Density_2" << " "
+                                              << "mineral_" << write_raw_cpo[property_i].first << "_Dislocation_Density_3" << " ";
+                    break;
+
                   default:
                     Assert(false, ExcMessage("Internal error: raw CPO postprocess case not found."));
                     break;
@@ -294,6 +307,18 @@ namespace aspect
                                                                 << "mineral_" << write_draw_volume_weighted_cpo[property_i].first << "_EA_theta" << " "
                                                                 << "mineral_" << write_draw_volume_weighted_cpo[property_i].first << "_EA_z" << " ";
                     break;
+
+                  case Output::VolumeDerivative:
+                   string_stream_content_draw_volume_weighting << "mineral_" << write_raw_cpo[property_i].first << "_Volume_Derivative" << " ";
+                    break;
+                  
+                  case Output::DislocationDensity:
+                    string_stream_content_draw_volume_weighting << "mineral_" << write_raw_cpo[property_i].first << "_Dislocation_Density_0" << " "
+                                                                << "mineral_" << write_raw_cpo[property_i].first << "_Dislocation_Density_1" << " "
+                                                                << "mineral_" << write_raw_cpo[property_i].first << "_Dislocation_Density_2" << " "
+                                                                << "mineral_" << write_raw_cpo[property_i].first << "_Dislocation_Density_3" << " ";
+                    break;
+
                   default:
                     Assert(false, ExcMessage("Internal error: raw CPO postprocess case not found."));
                     break;
@@ -373,6 +398,27 @@ namespace aspect
                                                       <<  euler_angles[write_raw_cpo[property_i].first][grain][1] << " "
                                                       <<  euler_angles[write_raw_cpo[property_i].first][grain][2] << " ";
                             break;
+                          
+                          case Output::VolumeDerivative:
+                            string_stream_content_raw << cpo_particle_property.get_volume_fraction_derivatives_grains(
+                                                        cpo_data_position,
+                                                        properties,
+                                                        write_raw_cpo[property_i].first,
+                                                        grain) << " ";
+                            break;
+
+                          case Output::DislocationDensity:
+                           dislocation_density = cpo_particle_property.get_dislocation_density_grains(cpo_data_position,
+                                                                            properties,
+                                                                            write_raw_cpo[property_i].first,
+                                                                            grain);
+
+                           string_stream_content_raw <<   dislocation_density[0] << " "
+                                                     <<   dislocation_density[1] << " "
+                                                     <<   dislocation_density[2] << " "
+                                                     <<   dislocation_density[3] << " ";
+                            break;
+
                           default:
                             Assert(false, ExcMessage("Internal error: raw CPO postprocess case not found."));
                             break;
@@ -426,24 +472,48 @@ namespace aspect
                       switch (write_draw_volume_weighted_cpo[property_i].second)
                         {
                           case Output::VolumeFraction:
+                          {
                             string_stream_content_draw_volume_weighting << volume_fractions_grains[write_draw_volume_weighted_cpo[property_i].first][grain] << " ";
                             break;
-
+                          }
                           case Output::RotationMatrix:
+                          {
                             string_stream_content_draw_volume_weighting << weighted_rotation_matrices[write_draw_volume_weighted_cpo[property_i].first][grain] << " ";
                             break;
-
+                          }
                           case Output::EulerAngles:
-                            Assert(compute_raw_euler_angles == true,
+                          { Assert(compute_raw_euler_angles == true,
                                    ExcMessage("Internal error: writing out raw Euler angles, without them being computed."));
                             string_stream_content_draw_volume_weighting << weighted_euler_angles[write_draw_volume_weighted_cpo[property_i].first][grain][0] << " "
                                                                         <<  weighted_euler_angles[write_draw_volume_weighted_cpo[property_i].first][grain][1] << " "
                                                                         <<  weighted_euler_angles[write_draw_volume_weighted_cpo[property_i].first][grain][2] << " ";
                             break;
-
+                          }
+                           case Output::VolumeDerivative:
+                           { string_stream_content_draw_volume_weighting << cpo_particle_property.get_volume_fraction_derivatives_grains(
+                                                                            cpo_data_position,
+                                                                            properties,
+                                                                            write_raw_cpo[property_i].first,
+                                                                            grain) << " ";
+                            break;
+                           }
+                           case Output::DislocationDensity:
+                           {
+                            const std::array<double,4>dislocation_density = cpo_particle_property.get_dislocation_density_grains(cpo_data_position,
+                                                                            properties,
+                                                                            write_raw_cpo[property_i].first,
+                                                                            grain);
+                           string_stream_content_draw_volume_weighting  <<   dislocation_density[0] << " "
+                                                                        <<   dislocation_density[1] << " "
+                                                                        <<   dislocation_density[2] << " "
+                                                                        <<   dislocation_density[3] << " ";
+                            break;
+                           }
                           default:
+                           {
                             Assert(false, ExcMessage("Internal error: raw CPO postprocess case not found."));
                             break;
+                           } 
                         }
                     }
                   string_stream_content_draw_volume_weighting << std::endl;
@@ -566,6 +636,11 @@ namespace aspect
         return Output::RotationMatrix;
       if (string == "Euler angles")
         return Output::EulerAngles;
+      if (string == "Volume fraction derivative")
+        return Output::VolumeDerivative;
+      if (string == "Disloction densities")
+        return Output::DislocationDensity;
+
       return Output::not_found;
     }
 
