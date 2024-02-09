@@ -268,6 +268,22 @@ namespace aspect
                                               << "mineral_" << write_raw_cpo[property_i].first << "_Dislocation_Density_2" << " "
                                               << "mineral_" << write_raw_cpo[property_i].first << "_Dislocation_Density_3" << " ";
                     break;
+                  
+                  case Output::SchmidFactor:
+                           { 
+                            string_stream_content_raw << "mineral_" << write_raw_cpo[property_i].first << "_Schmid_Factor" << " ";
+                            break;
+                           }
+                  case Output::RRSS:
+                           { 
+                            string_stream_content_raw << "mineral_" << write_raw_cpo[property_i].first << "_RRSS" << " ";
+                            break;
+                           }
+                  case Output::DeformationMechanismFactor:
+                           { 
+                            string_stream_content_raw << "mineral_" << write_raw_cpo[property_i].first << "_Deformation_mechnanism_factor" << " ";
+                            break;
+                           }
 
                   default:
                     Assert(false, ExcMessage("Internal error: raw CPO postprocess case not found."));
@@ -318,6 +334,22 @@ namespace aspect
                                                                 << "mineral_" << write_raw_cpo[property_i].first << "_Dislocation_Density_2" << " "
                                                                 << "mineral_" << write_raw_cpo[property_i].first << "_Dislocation_Density_3" << " ";
                     break;
+
+                  case Output::SchmidFactor:
+                           { 
+                             string_stream_content_draw_volume_weighting << "mineral_" << write_raw_cpo[property_i].first << "_Schmid_Factor" << " ";
+                            break;
+                           }
+                  case Output::RRSS:
+                           { 
+                             string_stream_content_draw_volume_weighting << "mineral_" << write_raw_cpo[property_i].first << "_RRSS" << " ";
+                            break;
+                           }
+                  case Output::DeformationMechanismFactor:
+                           { 
+                             string_stream_content_draw_volume_weighting << "mineral_" << write_raw_cpo[property_i].first << "_Deformation_mechnanism_factor" << " ";
+                            break;
+                           }
 
                   default:
                     Assert(false, ExcMessage("Internal error: raw CPO postprocess case not found."));
@@ -418,7 +450,30 @@ namespace aspect
                                                      <<   dislocation_density[2] << " "
                                                      <<   dislocation_density[3] << " ";
                             break;
-
+                          case Output::SchmidFactor:
+                           { string_stream_content_raw << cpo_particle_property.get_max_schmid_factor_grains(
+                                                                            cpo_data_position,
+                                                                            properties,
+                                                                            write_raw_cpo[property_i].first,
+                                                                            grain) << " ";
+                            break;
+                           }
+                           case Output::RRSS:
+                           { string_stream_content_raw << cpo_particle_property.get_tau_max_schmid_factor_grains(
+                                                                            cpo_data_position,
+                                                                            properties,
+                                                                            write_raw_cpo[property_i].first,
+                                                                            grain) << " ";
+                            break;
+                           }
+                           case Output::DeformationMechanismFactor:
+                           { string_stream_content_raw << cpo_particle_property.get_def_mech_factor_grains(
+                                                                            cpo_data_position,
+                                                                            properties,
+                                                                            write_raw_cpo[property_i].first,
+                                                                            grain) << " ";
+                            break;
+                           }
                           default:
                             Assert(false, ExcMessage("Internal error: raw CPO postprocess case not found."));
                             break;
@@ -509,6 +564,31 @@ namespace aspect
                                                                         <<   dislocation_density[3] << " ";
                             break;
                            }
+                           case Output::SchmidFactor:
+                           { string_stream_content_draw_volume_weighting << cpo_particle_property.get_max_schmid_factor_grains(
+                                                                            cpo_data_position,
+                                                                            properties,
+                                                                            write_raw_cpo[property_i].first,
+                                                                            grain) << " ";
+                            break;
+                           }
+                           case Output::RRSS:
+                           { string_stream_content_draw_volume_weighting << cpo_particle_property.get_tau_max_schmid_factor_grains(
+                                                                            cpo_data_position,
+                                                                            properties,
+                                                                            write_raw_cpo[property_i].first,
+                                                                            grain) << " ";
+                            break;
+                           }
+                           case Output::DeformationMechanismFactor:
+                           { string_stream_content_draw_volume_weighting << cpo_particle_property.get_def_mech_factor_grains(
+                                                                            cpo_data_position,
+                                                                            properties,
+                                                                            write_raw_cpo[property_i].first,
+                                                                            grain) << " ";
+                            break;
+                           }
+                          
                           default:
                            {
                             Assert(false, ExcMessage("Internal error: raw CPO postprocess case not found."));
@@ -640,6 +720,12 @@ namespace aspect
         return Output::VolumeDerivative;
       if (string == "Disloction densities")
         return Output::DislocationDensity;
+      if (string == "Schmid factor")
+        return Output::SchmidFactor;
+      if (string == "RRSS")
+        return Output::RRSS;
+      if (string == "Deformation mechanism factor")
+        return Output::DeformationMechanismFactor;
 
       return Output::not_found;
     }

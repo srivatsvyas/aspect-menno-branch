@@ -284,9 +284,10 @@ namespace aspect
           recrystalize_grains(const unsigned int cpo_index,
                               const ArrayView<double> &data,
                               const unsigned int mineral_i,
-                              const std::vector<double> & recrystalized_grainsize,
+                              const std::vector<double> &recrystalized_grainsize,
                               const std::vector<double> &recrystalized_fraction,
-                              std::vector<double> &strain_energy) const;
+                              std::vector<double> &strain_energy,
+                              std::vector<Tensor<2,3>> &dominant_slip_system) const;
 
           /**
            * Declare the parameters this class takes through input files.
@@ -366,7 +367,7 @@ namespace aspect
                                       const ArrayView<double> &data,
                                       const unsigned int mineral_i) const
           {
-            return data[cpo_data_position + 0 + mineral_i * (n_grains * 17 + 2)];
+            return data[cpo_data_position + 0 + mineral_i * (n_grains * 18 + 2)];
           }
 
           /**
@@ -383,7 +384,7 @@ namespace aspect
                                     const unsigned int mineral_i,
                                     const double deformation_type) const
           {
-            data[cpo_data_position + 0 + mineral_i * (n_grains * 17 + 2)] = deformation_type;
+            data[cpo_data_position + 0 + mineral_i * (n_grains * 18 + 2)] = deformation_type;
           }
 
           /**
@@ -398,7 +399,7 @@ namespace aspect
                                              const ArrayView<double> &data,
                                              const unsigned int mineral_i) const
           {
-            return data[cpo_data_position + 1 + mineral_i *(n_grains * 17 + 2)];
+            return data[cpo_data_position + 1 + mineral_i *(n_grains * 18 + 2)];
           }
 
           /**
@@ -415,7 +416,7 @@ namespace aspect
                                            const unsigned int mineral_i,
                                            const double volume_fraction_mineral) const
           {
-            data[cpo_data_position + 1 + mineral_i *(n_grains * 17 + 2)] = volume_fraction_mineral;
+            data[cpo_data_position + 1 + mineral_i *(n_grains * 18 + 2)] = volume_fraction_mineral;
           }
 
           /**
@@ -432,7 +433,7 @@ namespace aspect
                                              const unsigned int mineral_i,
                                              const unsigned int grain_i) const
           {
-            return data[cpo_data_position + 2 + grain_i * 15 + mineral_i * (n_grains * 17 + 2)];
+            return data[cpo_data_position + 2 + grain_i * 18 + mineral_i * (n_grains * 18 + 2)];
           }
 
           /**
@@ -451,7 +452,7 @@ namespace aspect
                                            const unsigned int grain_i,
                                            const double volume_fractions_grains) const
           {
-            data[cpo_data_position + 2 + grain_i * 15 + mineral_i * (n_grains * 17 + 2)] = volume_fractions_grains;
+            data[cpo_data_position + 2 + grain_i * 18 + mineral_i * (n_grains * 18 + 2)] = volume_fractions_grains;
           }
 
           /**
@@ -473,7 +474,7 @@ namespace aspect
             for (unsigned int i = 0; i < Tensor<2,3>::n_independent_components ; ++i)
               {
                 const dealii::TableIndices<2> index = Tensor<2,3>::unrolled_to_component_indices(i);
-                rotation_matrix[index] = data[cpo_data_position + 3 + grain_i * 15 + mineral_i * (n_grains * 17 + 2) + i];
+                rotation_matrix[index] = data[cpo_data_position + 3 + grain_i * 18 + mineral_i * (n_grains * 18 + 2) + i];
               }
             return rotation_matrix;
           }
@@ -497,7 +498,7 @@ namespace aspect
             for (unsigned int i = 0; i < Tensor<2,3>::n_independent_components ; ++i)
               {
                 const dealii::TableIndices<2> index = Tensor<2,3>::unrolled_to_component_indices(i);
-                data[cpo_data_position + 3 + grain_i * 15 + mineral_i * (n_grains * 17 + 2) + i] = rotation_matrix[index];
+                data[cpo_data_position + 3 + grain_i * 18 + mineral_i * (n_grains * 18 + 2) + i] = rotation_matrix[index];
               }
           }
 
@@ -515,7 +516,7 @@ namespace aspect
                                              const unsigned int mineral_i,
                                              const unsigned int grain_i) const
           {
-            return data[cpo_data_position + 12 + grain_i * 15 + mineral_i * (n_grains * 17 + 2)];
+            return data[cpo_data_position + 12 + grain_i * 18 + mineral_i * (n_grains * 18 + 2)];
           }
 
           /**
@@ -534,7 +535,7 @@ namespace aspect
                                            const unsigned int grain_i,
                                            const double volume_fractions_derivatives_grains) const
           {
-            data[cpo_data_position + 12 + grain_i * 15 + mineral_i * (n_grains * 17 + 2)] = volume_fractions_derivatives_grains;
+            data[cpo_data_position + 12 + grain_i * 18 + mineral_i * (n_grains * 18 + 2)] = volume_fractions_derivatives_grains;
           }
 
           /**
@@ -554,7 +555,7 @@ namespace aspect
             std::array<double, 4>dislocation_density;
             for(unsigned int i = 0; i < 4; ++i)
               {
-               dislocation_density[i] =  data[cpo_data_position + 13 + grain_i * 15 + mineral_i * (n_grains * 17 + 2) + i];              
+               dislocation_density[i] =  data[cpo_data_position + 13 + grain_i * 18 + mineral_i * (n_grains * 18 + 2) + i];              
               }
             return dislocation_density;            
           }
@@ -577,10 +578,118 @@ namespace aspect
           {
             for(unsigned int slip_system_i = 0; slip_system_i < 4; ++slip_system_i)
               {
-                data[cpo_data_position + 13 + grain_i * 17 + mineral_i * (n_grains * 17 + 2) +slip_system_i] = dislocation_density[slip_system_i];              
+                data[cpo_data_position + 13 + grain_i * 18 + mineral_i * (n_grains * 18 + 2) +slip_system_i] = dislocation_density[slip_system_i];              
               }
           }
 
+          /**
+           * @brief Returns the value in the data array representing the derivative of the volume fraction of a grain.
+           *
+           * @param cpo_data_position The starting index/position of the cpo data in the particle data vector.
+           * @param data The particle data vector.
+           * @param mineral_i The mineral to get the value of the volume fraction of a grain for.
+           * @param grain_i The grain to get the value of the volume fraction of.
+           */
+          inline
+          double get_max_schmid_factor_grains(const unsigned int cpo_data_position,
+                                             const ArrayView<const double> &data,
+                                             const unsigned int mineral_i,
+                                             const unsigned int grain_i) const
+          {
+            return data[cpo_data_position + 17 + grain_i * 18 + mineral_i * (n_grains * 18 + 2)];
+          }
+
+          /**
+           * @brief Sets the value in the data array representing the volume fraction derivative of a grain.
+           *
+           * @param cpo_data_position The starting index/position of the cpo data in the particle data vector.
+           * @param data The particle data vector.
+           * @param mineral_i The mineral to set the value of the volume fraction of a grain for.
+           * @param grain_i The grain to set the value of the volume fraction of.
+           * @param volume_fractions_grains The value of the of the volume fraction of a grain to set.
+           */
+          inline
+          void set_max_schmid_factor_grains(const unsigned int cpo_data_position,
+                                           const ArrayView<double> &data,
+                                           const unsigned int mineral_i,
+                                           const unsigned int grain_i,
+                                           const double max_schmid_factor) const
+          {
+            data[cpo_data_position + 17 + grain_i * 18 + mineral_i * (n_grains * 18 + 2)] = max_schmid_factor;
+          }
+
+
+          /**
+           * @brief Returns the value in the data array representing the derivative of the volume fraction of a grain.
+           *
+           * @param cpo_data_position The starting index/position of the cpo data in the particle data vector.
+           * @param data The particle data vector.
+           * @param mineral_i The mineral to get the value of the volume fraction of a grain for.
+           * @param grain_i The grain to get the value of the volume fraction of.
+           */
+          inline
+          int get_tau_max_schmid_factor_grains(const unsigned int cpo_data_position,
+                                             const ArrayView<const double> &data,
+                                             const unsigned int mineral_i,
+                                             const unsigned int grain_i) const
+          {
+            return data[cpo_data_position + 18 + grain_i * 18 + mineral_i * (n_grains * 18 + 2)];
+          }
+
+          /**
+           * @brief Sets the value in the data array representing the volume fraction derivative of a grain.
+           *
+           * @param cpo_data_position The starting index/position of the cpo data in the particle data vector.
+           * @param data The particle data vector.
+           * @param mineral_i The mineral to set the value of the volume fraction of a grain for.
+           * @param grain_i The grain to set the value of the volume fraction of.
+           * @param volume_fractions_grains The value of the of the volume fraction of a grain to set.
+           */
+          inline
+          void set_tau_max_schmid_factor_grains(const unsigned int cpo_data_position,
+                                           const ArrayView<double> &data,
+                                           const unsigned int mineral_i,
+                                           const unsigned int grain_i,
+                                           const int tau_max_scmid_factor) const
+          {
+            data[cpo_data_position + 18 + grain_i * 18 + mineral_i * (n_grains * 18 + 2)] = tau_max_scmid_factor;
+          }
+
+          /**
+           * @brief Returns the value in the data array representing the derivative of the volume fraction of a grain.
+           *
+           * @param cpo_data_position The starting index/position of the cpo data in the particle data vector.
+           * @param data The particle data vector.
+           * @param mineral_i The mineral to get the value of the volume fraction of a grain for.
+           * @param grain_i The grain to get the value of the volume fraction of.
+           */
+          inline
+          double get_def_mech_factor_grains(const unsigned int cpo_data_position,
+                                             const ArrayView<const double> &data,
+                                             const unsigned int mineral_i,
+                                             const unsigned int grain_i) const
+          {
+            return data[cpo_data_position + 19 + grain_i * 18 + mineral_i * (n_grains * 18 + 2)];
+          }
+
+          /**
+           * @brief Sets the value in the data array representing the volume fraction derivative of a grain.
+           *
+           * @param cpo_data_position The starting index/position of the cpo data in the particle data vector.
+           * @param data The particle data vector.
+           * @param mineral_i The mineral to set the value of the volume fraction of a grain for.
+           * @param grain_i The grain to set the value of the volume fraction of.
+           * @param volume_fractions_grains The value of the of the volume fraction of a grain to set.
+           */
+          inline
+          void set_def_mech_factor_grains(const unsigned int cpo_data_position,
+                                           const ArrayView<double> &data,
+                                           const unsigned int mineral_i,
+                                           const unsigned int grain_i,
+                                           const double def_mech_factor_grains) const
+          {
+            data[cpo_data_position + 19 + grain_i * 18 + mineral_i * (n_grains * 18 + 2)] = def_mech_factor_grains;
+          }
 
         private:
           /**
@@ -648,6 +757,13 @@ namespace aspect
            */
           mutable boost::mt19937 random_number_generator;
           unsigned int random_number_seed;
+
+          /**
+           * Initialize the grain volume with a normal distribution
+          */
+          bool initialize_grains_with_normal_distribution;
+          double initialize_grains_with_normal_distribution_mean;
+          double initialize_grains_with_normal_distribution_standard_deviation;
 
           unsigned int n_grains;
 
