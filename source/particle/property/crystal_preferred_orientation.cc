@@ -84,15 +84,15 @@ namespace aspect
         // first generate three random numbers between 0 and 1 and multiply them with 2 PI or 2 for z. Note that these are not the same as phi_1, theta and phi_2.
 
         boost::random::uniform_real_distribution<double> uniform_distribution(0,1);
-        boost::random::uniform_real_distribution<double> uniform_distribution1(0.05,0.08);
+        boost::random::uniform_real_distribution<double> uniform_distribution1(0.00,0.0833);
         double one = uniform_distribution(this->random_number_generator);
         double two = uniform_distribution(this->random_number_generator);
         double three = uniform_distribution(this->random_number_generator);
         double rand_def = uniform_distribution1(this->random_number_generator);
 
-        double theta = 2.0 * M_PI * one; // Rotation about the pole (Z)
+        double theta = dt != 0.0 ? 2 *M_PI * rand_def  :2.0 * M_PI * one; // Rotation about the pole (Z)
         double phi = 2.0 * M_PI * two; // For direction of pole deflection.
-        double z = dt != 0.0 ? rand_def * three : 2.0 * three; //For magnitude of pole deflection.
+        double z =  2.0 * three; //For magnitude of pole deflection.
 
         // SV : have to come up with a solution to create a misorientation of 10 degrees or more for olivine new grains.
         // SV : maybe write a separate block of code in the recrystalize_grains function to initialize the new grains with a misorientation wrt to the parent grain.
@@ -337,7 +337,7 @@ namespace aspect
           }
 
         const double dt = this->get_timestep();
-        std::cout<<"timestep = "<<dt;
+        //std::cout<<"timestep = "<<dt;
 
         // even in 2d we need 3d strain-rates and velocity gradient tensors. So we make them 3d by
         // adding an extra dimension which is zero.
@@ -716,7 +716,7 @@ namespace aspect
                         }
                       vf_old = vf_new;
                     }
-
+                  Assert(vf_new > 0, ExcMessage("The grain volume for grain" + std::to_string(grain_i) + " is negative."))
                   set_volume_fractions_grains(cpo_index,data,mineral_i,grain_i,vf_new);
                   sum_volume_fractions += vf_new;
 
@@ -1306,10 +1306,11 @@ namespace aspect
                   {
                     replaced_grain_volume += get_volume_fractions_grains(cpo_index,data,mineral_i,permutation_vector[permutation_vector_counter+recrystalize_grain_i]);
                   }
+                 set_volume_fractions_grains(cpo_index,data,mineral_i,permutation_vector[permutation_vector_counter],replaced_grain_volume);
         
                 for (unsigned int recrystalize_grain_i = 0; recrystalize_grain_i < n_recrystalized_grains; ++recrystalize_grain_i)
                   {
-                    set_volume_fractions_grains(cpo_index,data,mineral_i,permutation_vector[permutation_vector_counter],replaced_grain_volume);
+                    set_volume_fractions_grains(cpo_index,data,mineral_i,permutation_vector[permutation_vector_counter],recrystalized_grain_volume[grain_i]);
                     Tensor<2,3> random_rotation_matrix;
                     Tensor<2,3> new_orientation_tensor;
                     this->compute_random_rotation_matrix(random_rotation_matrix);
@@ -1376,7 +1377,7 @@ namespace aspect
         std::vector<std::array<Tensor<2,3>,4>> global_slip_system(n_grains);
         std::vector<double> accumulated_strain(n_grains);
         const double t =this-> get_time();
-
+        
         // first compute the strain energy and G for all grains
         for (unsigned int grain_i = 0; grain_i < n_grains; ++grain_i)
           {
@@ -1442,7 +1443,7 @@ namespace aspect
                   
                 if(get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i) > 0)
                 {
-                  accumulated_strain[grain_i] = schmid_factor_max[grain_i] * this->get_time() *std::sqrt(std::max(-second_invariant(deviatoric_strain_rate), 0.));
+                  accumulated_strain[grain_i]+= schmid_factor_max[grain_i] * this->get_timestep() *std::sqrt(std::max(-second_invariant(deviatoric_strain_rate), 0.));
                 }
                 else
                 {
@@ -1639,21 +1640,28 @@ namespace aspect
                  critical strain -> strain at which dynamic recrystalization starts
 
               */
-              const double strain = this->get_time() *std::sqrt(std::max(-second_invariant(deviatoric_strain_rate), 0.));
+              //const double strain = this->get_time() *std::sqrt(std::max(-second_invariant(deviatoric_strain_rate), 0.));
               const double avrami_exponent = 1.48;
-              const double strain_critical = 0.25;              
+              const double strain_critical = 0.;              
               const double rate_of_transformation = exp(-1.85);
-              for (unsigned int grain_i = 0; grain_i < n_grains; grain_i++ )
-              if (strain_critical < (schmid_factor_max[grain_i] * strain) )
+              for (unsigned int grain_i = 0; grain_i < n_grains; grain_i++ ){
+              const double strain = schmid_factor_max[grain_i] * this->get_time() *std::sqrt(std::max(-second_invariant(deviatoric_strain_rate), 0.));
+              if (strain_critical <  strain )
                 {
-                  recrystalization_increment[grain_i] = avrami_exponent * rate_of_transformation * std::pow( (schmid_factor_max[grain_i] * strain) - strain_critical , avrami_exponent - 1 ) * exp(-1 * (rate_of_transformation * std::pow( (schmid_factor_max[grain_i] * strain)-strain_critical , avrami_exponent )));
+                  recrystalization_increment[grain_i] = avrami_exponent * rate_of_transformation * std::pow( strain - strain_critical , avrami_exponent - 1 ) * exp(-1 * (rate_of_transformation * std::pow(( strain -strain_critical) , avrami_exponent )));
                 }
               else
                 {
                   recrystalization_increment[grain_i] = 0; 
                 }
-       
-
+              }
+        if(differential_stress != 0)
+        {
+         const int n_recrystalized_test = std::pow(std::floor( initial_grain_size/(A[mineral_i] * std::pow(differential_stress/1e6, m[mineral_i]))),3);// > (n_grains - n_grains_init)
+         //std::cout<< n_recrystalized_test<<std::endl;
+        // AssertThrow( n_recrystalized_test < (n_grains - n_grains_init) , ExcMessage("Potential_for more grains to recrystalize than available memory slots. Restart the model by either: a. Lowering the number of initialized grains or b. Increasing the total number of memory slots available. "));
+        }
+        
         for (unsigned int grain_i = 0; grain_i < n_grains; ++grain_i)
           {
             if(recrystalization_increment[grain_i] != 0)
@@ -1710,7 +1718,7 @@ namespace aspect
         for (unsigned int grain_i = 0; grain_i < n_grains; ++grain_i)
           {
             double volume_fraction_grain = get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i);
-            if (volume_fraction_grain != 0)
+            if ((volume_fraction_grain != 0) && (accumulated_strain[grain_i] != 0))
               {
                 // Different than D-Rex. Here we actually only compute the derivative and do not multiply it with the volume_fractions. We do that when we advect.
                 deriv_volume_fractions[grain_i] = get_volume_fraction_mineral(cpo_index,data,mineral_i) *  drexpp_mobility[mineral_i] * (mean_strain_energy - strain_energy[grain_i]);
