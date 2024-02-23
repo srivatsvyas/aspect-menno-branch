@@ -284,6 +284,16 @@ namespace aspect
                             string_stream_content_raw << "mineral_" << write_raw_cpo[property_i].first << "_Deformation_mechnanism_factor" << " ";
                             break;
                            }
+                  case Output::RecrystalizationIncrement:
+                           { 
+                            string_stream_content_raw << "mineral_" << write_raw_cpo[property_i].first << "_Recrystalization_increment" << " ";
+                            break;
+                           }
+                  case Output::ParentGrain:
+                           { 
+                            string_stream_content_raw << "mineral_" << write_raw_cpo[property_i].first << "_Parent_grain" << " ";
+                            break;
+                           }
 
                   default:
                     Assert(false, ExcMessage("Internal error: raw CPO postprocess case not found."));
@@ -348,6 +358,16 @@ namespace aspect
                   case Output::DeformationMechanismFactor:
                            { 
                              string_stream_content_draw_volume_weighting << "mineral_" << write_raw_cpo[property_i].first << "_Deformation_mechnanism_factor" << " ";
+                            break;
+                           }
+                  case Output::RecrystalizationIncrement:
+                           { 
+                             string_stream_content_draw_volume_weighting << "mineral_" << write_raw_cpo[property_i].first << "_Recrystalization_increment" << " ";
+                            break;
+                           }
+                  case Output::ParentGrain:
+                           { 
+                             string_stream_content_draw_volume_weighting << "mineral_" << write_raw_cpo[property_i].first << "_Parent_grain" << " ";
                             break;
                            }
 
@@ -474,6 +494,22 @@ namespace aspect
                                                                             grain) << " ";
                             break;
                            }
+                           case Output::RecrystalizationIncrement:
+                           { string_stream_content_raw << cpo_particle_property.get_del_rx_grains(
+                                                                            cpo_data_position,
+                                                                            properties,
+                                                                            write_raw_cpo[property_i].first,
+                                                                            grain) << " ";
+                            break;
+                           }
+                           case Output::ParentGrain:
+                           { string_stream_content_raw << cpo_particle_property.get_parent_grain_grains(
+                                                                            cpo_data_position,
+                                                                            properties,
+                                                                            write_raw_cpo[property_i].first,
+                                                                            grain) << " ";
+                            break;
+                           }
                           default:
                             Assert(false, ExcMessage("Internal error: raw CPO postprocess case not found."));
                             break;
@@ -582,6 +618,22 @@ namespace aspect
                            }
                            case Output::DeformationMechanismFactor:
                            { string_stream_content_draw_volume_weighting << cpo_particle_property.get_def_mech_factor_grains(
+                                                                            cpo_data_position,
+                                                                            properties,
+                                                                            write_raw_cpo[property_i].first,
+                                                                            grain) << " ";
+                            break;
+                           }
+                           case Output::RecrystalizationIncrement:
+                           { string_stream_content_draw_volume_weighting << cpo_particle_property.get_del_rx_grains(
+                                                                            cpo_data_position,
+                                                                            properties,
+                                                                            write_raw_cpo[property_i].first,
+                                                                            grain) << " ";
+                            break;
+                           }
+                           case Output::ParentGrain:
+                           { string_stream_content_draw_volume_weighting << cpo_particle_property.get_parent_grain_grains(
                                                                             cpo_data_position,
                                                                             properties,
                                                                             write_raw_cpo[property_i].first,
@@ -726,6 +778,10 @@ namespace aspect
         return Output::RRSS;
       if (string == "Deformation mechanism factor")
         return Output::DeformationMechanismFactor;
+      if (string == "Recrystalization fractions")
+        return Output::RecrystalizationIncrement;
+      if (string == "Parent grain")
+        return Output::ParentGrain;
 
       return Output::not_found;
     }
