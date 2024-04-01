@@ -1484,20 +1484,19 @@ namespace aspect
                   {
                     //std::cout<<"grain size for grain "<<grain_i<<" = "<< std::cbrt((3/(4*numbers::PI)) * grain_volume)<<"\n";
                     std::vector<double> diffusion_strain_rates(volume_fractions.size(),std::numeric_limits<double>::quiet_NaN());
-                    std::vector<double> effective_strain_rates(volume_fractions.size(),std::numeric_limits<double>::quiet_NaN());
+                    std::vector<double> composite_strain_rates(volume_fractions.size(),std::numeric_limits<double>::quiet_NaN());
                     std::vector<double> dis_strain_rates(volume_fractions.size(),std::numeric_limits<double>::quiet_NaN());
 
                     for (unsigned int composition = 0; composition < volume_fractions.size(); ++composition)
                       {
                         dis_strain_rates[composition] = dislocation_strain_rates[composition];
                         diffusion_strain_rates[composition] = diffusion_pre_strain_rates[composition] * std::pow(2 * std::pow((3/(4*numbers::PI)) * grain_volume, 0.33),-1 * diffusion_grain_size_exponent[composition]);
-                        effective_strain_rates[composition] =(diffusion_strain_rates[composition] + dis_strain_rates[composition]);
+                        composite_strain_rates[composition] =(diffusion_strain_rates[composition] + dis_strain_rates[composition]);
                       }
                     const double dislocation_strain_rate = MaterialModel::MaterialUtilities::average_value(volume_fractions, dis_strain_rates, MaterialModel::MaterialUtilities::harmonic);
-                    const double effective_strain_rate = MaterialModel::MaterialUtilities::average_value(volume_fractions, composite_strain_rates, MaterialModel::MaterialUtilities::harmonic);
+                    const double composite_strain_rate = MaterialModel::MaterialUtilities::average_value(volume_fractions, composite_strain_rates, MaterialModel::MaterialUtilities::harmonic);
 
-                    grain_boundary_sliding_fractions[grain_i] = dislocation_strain_rate/effective_strain_rate;
-
+                    grain_boundary_sliding_fractions[grain_i] = dislocation_strain_rate/composite_strain_rate;
                     AssertThrow(grain_boundary_sliding_fractions[grain_i]>0.0, ExcMessage("diffusion strain-rate larger than total strain-rate."
                                                                                           "composite_viscosity = " + std::to_string(composite_strain_rate)
                                                                                           + ", diffusion_viscosity = " + std::to_string(dislocation_strain_rate)
@@ -1575,14 +1574,7 @@ namespace aspect
               }
             set_del_rx_grains(cpo_index,data,mineral_i,grain_i,recrystalization_increment[grain_i]);
           }
-        /* if(differential_stress != 0)
-         {
-           const double initial_volume = n_grains_init * (4/3) * numbers::PI * std::pow(initial_grain_size * 0.5, 3);
-           const double b_piezometer = (4/3) * numbers::PI * std::pow((A[mineral_i] * std::pow(differential_stress/1e6,m[mineral_i])) * 0.5 ,3);
-          const int n_recrystalized_test = std::floor(initial_volume / b_piezometer);
-          //std::cout<< n_recrystalized_test<<std::endl;
-          AssertThrow( n_recrystalized_test < n_grains , ExcMessage("Potential_for more grains to recrystalize than available memory slots. Restart the model by either: a. Lowering the number of initialized grains or b. Increasing the total number of memory slots available. "));
-         }*/
+
 
         for (unsigned int grain_i = 0; grain_i < n_grains; ++grain_i)
           {
