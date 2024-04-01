@@ -445,7 +445,7 @@ namespace aspect
             // normalize the volume fractions back to a total of 1 for each mineral
             double inv_sum_volume_mineral;
 
-           if (temp_cpo_derivative_algorithm ==  "D-Rex++")
+           if (cpo_derivative_algorithm == CPODerivativeAlgorithm::drex_2004)
            {
             inv_sum_volume_mineral = 1/sum_volume_mineral;
 
