@@ -84,16 +84,13 @@ namespace aspect
         // first generate three random numbers between 0 and 1 and multiply them with 2 PI or 2 for z. Note that these are not the same as phi_1, theta and phi_2.
 
         boost::random::uniform_real_distribution<double> uniform_distribution(0,1);
-        boost::random::uniform_real_distribution<double> uniform_distribution1(0.00,0.0833);
-        boost::random::uniform_real_distribution<double> uniform_distribution2(-0.0833,0.0833);
         double one = uniform_distribution(this->random_number_generator);
         double two = uniform_distribution(this->random_number_generator);
         double three = uniform_distribution(this->random_number_generator);
-        double rand_def = uniform_distribution1(this->random_number_generator);
 
-        double theta = dt != 0.0 ? 2 *M_PI * rand_def  :2.0 * M_PI * one; // Rotation about the pole (Z)
-        double phi = dt != 0.0 ? 0.0 : 2.0 * M_PI * two; // For direction of pole deflection.
-        double z =  dt != 0.0 ? 0.0 : 2.0 * three; //For magnitude of pole deflection.
+        double theta = 2.0 * M_PI * one; // Rotation about the pole (Z)
+        double phi   =  2.0 * M_PI * two; // For direction of pole deflection.
+        double z     =   2.0 * three; //For magnitude of pole deflection.
 
         // SV : have to come up with a solution to create a misorientation of 10 degrees or more for olivine new grains.
         // SV : maybe write a separate block of code in the recrystalize_grains function to initialize the new grains with a misorientation wrt to the parent grain.
