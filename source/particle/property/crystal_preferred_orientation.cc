@@ -364,7 +364,6 @@ namespace aspect
           }
 
         const double dt = this->get_timestep();
-        //std::cout<<"timestep = "<<dt;
 
         // even in 2d we need 3d strain-rates and velocity gradient tensors. So we make them 3d by
         // adding an extra dimension which is zero.
@@ -453,7 +452,6 @@ namespace aspect
             Assert(std::isfinite(inv_sum_volume_mineral),
                    ExcMessage("inv_sum_volume_mineral is not finite. sum_volume_enstatite = "
                               + std::to_string(sum_volume_mineral)));
-
            }
            else
            {
