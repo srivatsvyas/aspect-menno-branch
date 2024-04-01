@@ -1299,7 +1299,7 @@ namespace aspect
         std::vector<double> def_mech_factor(n_grains);
         std::vector<Tensor<1,3>> spin_vectors(n_grains);
         std::vector<double> schmid_factor_max(n_grains);
-        std::vector<double> recrystalization_increment(n_grains);
+        double recrystalization_increment;
         std::vector<double> recrystalized_grain_volume(n_grains);
         std::vector<Tensor<2,3>> dominant_slip_system(n_grains);
         std::vector<std::array<Tensor<2,3>,4>> global_slip_system(n_grains);
@@ -1561,31 +1561,28 @@ namespace aspect
         const double avrami_exponent = 1.48;
         const double strain_critical = 0.;
         const double rate_of_transformation = 0.15;
-        for (unsigned int grain_i = 0; grain_i < n_grains; grain_i++ )
-          {
-            //const double strain = get_accumulated_strain_grains(cpo_index,data,mineral_i,grain_i);
             if (strain_critical <  strain )
               {
-                recrystalization_increment[grain_i] = avrami_exponent * rate_of_transformation * std::pow( strain - strain_critical , avrami_exponent - 1 ) * exp(-1 * (rate_of_transformation * std::pow(( strain -strain_critical) , avrami_exponent )));
+                recrystalization_increment = avrami_exponent * rate_of_transformation * std::pow( strain - strain_critical , avrami_exponent - 1 ) * exp(-1 * (rate_of_transformation * std::pow(( strain -strain_critical) , avrami_exponent )));
               }
             else
               {
-                recrystalization_increment[grain_i] = 0.0;
+                recrystalization_increment = 0.0;
               }
-            set_del_rx_grains(cpo_index,data,mineral_i,grain_i,recrystalization_increment[grain_i]);
-          }
+           
 
 
         for (unsigned int grain_i = 0; grain_i < n_grains; ++grain_i)
           {
-            if (recrystalization_increment[grain_i] != 0)
+            if (recrystalization_increment != 0.)
               {
-                recrystalized_fractions[grain_i] = (def_mech_factor[grain_i]  * recrystalization_increment[grain_i]);
+                recrystalized_fractions[grain_i] = (def_mech_factor[grain_i]  * recrystalization_increment);
               }
             else
               {
-                recrystalized_fractions[grain_i] = 0;
-              }
+                recrystalized_fractions[grain_i] = 0.;
+              } 
+            set_del_rx_grains(cpo_index,data,mineral_i,grain_i,recrystalized_fractions[grain_i]);
           }
 
         this->recrystalize_grains(cpo_index,
