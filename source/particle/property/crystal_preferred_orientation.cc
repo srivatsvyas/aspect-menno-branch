@@ -1605,12 +1605,9 @@ namespace aspect
             const double volume_fraction_grain = get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i);
             if ((volume_fraction_grain != 0) && (accumulated_strain[grain_i] != 0))
               {
-                //deriv_a_cosine_matrices[grain_i] =   Utilities::Tensors::levi_civita<3>() * spin_vectors[grain_i];
                 deriv_a_cosine_matrices[grain_i] =  def_mech_factor[grain_i] * Utilities::Tensors::levi_civita<3>() * spin_vectors[grain_i];
-                //deriv_a_cosine_matrices[grain_i] =  Utilities::Tensors::levi_civita<3>() * spin_vectors[grain_i];
                 sum_volume += volume_fraction_grain;
                 // volume averaged strain energy
-                //strain_energy[grain_i] = strain_energy[grain_i];
                 strain_energy[grain_i] = def_mech_factor[grain_i] * strain_energy[grain_i];
                 mean_strain_energy +=  volume_fraction_grain * strain_energy[grain_i];
 
