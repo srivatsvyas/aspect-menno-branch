@@ -257,48 +257,48 @@ namespace aspect
                                               << "mineral_" << write_raw_cpo[property_i].first << "_EA_theta" << " "
                                               << "mineral_" << write_raw_cpo[property_i].first << "_EA_z" << " ";
                     break;
-                  
+
                   case Output::VolumeDerivative:
                     string_stream_content_raw << "mineral_" << write_raw_cpo[property_i].first << "_Volume_Derivative" << " ";
                     break;
-                  
+
                   case Output::DislocationDensity:
                     string_stream_content_raw << "mineral_" << write_raw_cpo[property_i].first << "_Dislocation_Density_0" << " "
                                               << "mineral_" << write_raw_cpo[property_i].first << "_Dislocation_Density_1" << " "
                                               << "mineral_" << write_raw_cpo[property_i].first << "_Dislocation_Density_2" << " "
                                               << "mineral_" << write_raw_cpo[property_i].first << "_Dislocation_Density_3" << " ";
                     break;
-                  
+
                   case Output::SchmidFactor:
-                           { 
-                            string_stream_content_raw << "mineral_" << write_raw_cpo[property_i].first << "_Schmid_Factor" << " ";
-                            break;
-                           }
+                  {
+                    string_stream_content_raw << "mineral_" << write_raw_cpo[property_i].first << "_Schmid_Factor" << " ";
+                    break;
+                  }
                   case Output::RRSS:
-                           { 
-                            string_stream_content_raw << "mineral_" << write_raw_cpo[property_i].first << "_RRSS" << " ";
-                            break;
-                           }
+                  {
+                    string_stream_content_raw << "mineral_" << write_raw_cpo[property_i].first << "_RRSS" << " ";
+                    break;
+                  }
                   case Output::DeformationMechanismFactor:
-                           { 
-                            string_stream_content_raw << "mineral_" << write_raw_cpo[property_i].first << "_Deformation_mechnanism_factor" << " ";
-                            break;
-                           }
+                  {
+                    string_stream_content_raw << "mineral_" << write_raw_cpo[property_i].first << "_Deformation_mechnanism_factor" << " ";
+                    break;
+                  }
                   case Output::RecrystalizationIncrement:
-                           { 
-                            string_stream_content_raw << "mineral_" << write_raw_cpo[property_i].first << "_Recrystalization_increment" << " ";
-                            break;
-                           }
+                  {
+                    string_stream_content_raw << "mineral_" << write_raw_cpo[property_i].first << "_Recrystalization_increment" << " ";
+                    break;
+                  }
                   case Output::ParentGrain:
-                           { 
-                            string_stream_content_raw << "mineral_" << write_raw_cpo[property_i].first << "_Parent_grain" << " ";
-                            break;
-                           }
+                  {
+                    string_stream_content_raw << "mineral_" << write_raw_cpo[property_i].first << "_Parent_grain" << " ";
+                    break;
+                  }
                   case Output::AccumulatedStrain:
-                           { 
-                            string_stream_content_raw << "mineral_" << write_raw_cpo[property_i].first << "_Accumulated_strain" << " ";
-                            break;
-                           }
+                  {
+                    string_stream_content_raw << "mineral_" << write_raw_cpo[property_i].first << "_Accumulated_strain" << " ";
+                    break;
+                  }
 
                   default:
                     Assert(false, ExcMessage("Internal error: raw CPO postprocess case not found."));
@@ -340,9 +340,9 @@ namespace aspect
                     break;
 
                   case Output::VolumeDerivative:
-                   string_stream_content_draw_volume_weighting << "mineral_" << write_raw_cpo[property_i].first << "_Volume_Derivative" << " ";
+                    string_stream_content_draw_volume_weighting << "mineral_" << write_raw_cpo[property_i].first << "_Volume_Derivative" << " ";
                     break;
-                  
+
                   case Output::DislocationDensity:
                     string_stream_content_draw_volume_weighting << "mineral_" << write_raw_cpo[property_i].first << "_Dislocation_Density_0" << " "
                                                                 << "mineral_" << write_raw_cpo[property_i].first << "_Dislocation_Density_1" << " "
@@ -351,35 +351,35 @@ namespace aspect
                     break;
 
                   case Output::SchmidFactor:
-                           { 
-                             string_stream_content_draw_volume_weighting << "mineral_" << write_raw_cpo[property_i].first << "_Schmid_Factor" << " ";
-                            break;
-                           }
+                  {
+                    string_stream_content_draw_volume_weighting << "mineral_" << write_raw_cpo[property_i].first << "_Schmid_Factor" << " ";
+                    break;
+                  }
                   case Output::RRSS:
-                           { 
-                             string_stream_content_draw_volume_weighting << "mineral_" << write_raw_cpo[property_i].first << "_RRSS" << " ";
-                            break;
-                           }
+                  {
+                    string_stream_content_draw_volume_weighting << "mineral_" << write_raw_cpo[property_i].first << "_RRSS" << " ";
+                    break;
+                  }
                   case Output::DeformationMechanismFactor:
-                           { 
-                             string_stream_content_draw_volume_weighting << "mineral_" << write_raw_cpo[property_i].first << "_Deformation_mechnanism_factor" << " ";
-                            break;
-                           }
+                  {
+                    string_stream_content_draw_volume_weighting << "mineral_" << write_raw_cpo[property_i].first << "_Deformation_mechnanism_factor" << " ";
+                    break;
+                  }
                   case Output::RecrystalizationIncrement:
-                           { 
-                             string_stream_content_draw_volume_weighting << "mineral_" << write_raw_cpo[property_i].first << "_Recrystalization_increment" << " ";
-                            break;
-                           }
+                  {
+                    string_stream_content_draw_volume_weighting << "mineral_" << write_raw_cpo[property_i].first << "_Recrystalization_increment" << " ";
+                    break;
+                  }
                   case Output::ParentGrain:
-                           { 
-                             string_stream_content_draw_volume_weighting << "mineral_" << write_raw_cpo[property_i].first << "_Parent_grain" << " ";
-                            break;
-                           }
+                  {
+                    string_stream_content_draw_volume_weighting << "mineral_" << write_raw_cpo[property_i].first << "_Parent_grain" << " ";
+                    break;
+                  }
                   case Output::AccumulatedStrain:
-                           { 
-                             string_stream_content_draw_volume_weighting << "mineral_" << write_raw_cpo[property_i].first << "_Accumulated_strain" << " ";
-                            break;
-                           }
+                  {
+                    string_stream_content_draw_volume_weighting << "mineral_" << write_raw_cpo[property_i].first << "_Accumulated_strain" << " ";
+                    break;
+                  }
 
                   default:
                     Assert(false, ExcMessage("Internal error: raw CPO postprocess case not found."));
@@ -460,7 +460,7 @@ namespace aspect
                                                       <<  euler_angles[write_raw_cpo[property_i].first][grain][1] << " "
                                                       <<  euler_angles[write_raw_cpo[property_i].first][grain][2] << " ";
                             break;
-                          
+
                           case Output::VolumeDerivative:
                             string_stream_content_raw << cpo_particle_property.get_volume_fraction_derivatives_grains(
                                                         cpo_data_position,
@@ -470,64 +470,70 @@ namespace aspect
                             break;
 
                           case Output::DislocationDensity:
-                           dislocation_density = cpo_particle_property.get_dislocation_density_grains(cpo_data_position,
-                                                                            properties,
-                                                                            write_raw_cpo[property_i].first,
-                                                                            grain);
+                            dislocation_density = cpo_particle_property.get_dislocation_density_grains(cpo_data_position,
+                                                                                                       properties,
+                                                                                                       write_raw_cpo[property_i].first,
+                                                                                                       grain);
 
-                           string_stream_content_raw <<   dislocation_density[0] << " "
-                                                     <<   dislocation_density[1] << " "
-                                                     <<   dislocation_density[2] << " "
-                                                     <<   dislocation_density[3] << " ";
+                            string_stream_content_raw <<   dislocation_density[0] << " "
+                                                      <<   dislocation_density[1] << " "
+                                                      <<   dislocation_density[2] << " "
+                                                      <<   dislocation_density[3] << " ";
                             break;
                           case Output::SchmidFactor:
-                           { string_stream_content_raw << cpo_particle_property.get_max_schmid_factor_grains(
-                                                                            cpo_data_position,
-                                                                            properties,
-                                                                            write_raw_cpo[property_i].first,
-                                                                            grain) << " ";
+                          {
+                            string_stream_content_raw << cpo_particle_property.get_max_schmid_factor_grains(
+                                                        cpo_data_position,
+                                                        properties,
+                                                        write_raw_cpo[property_i].first,
+                                                        grain) << " ";
                             break;
-                           }
-                           case Output::RRSS:
-                           { string_stream_content_raw << cpo_particle_property.get_tau_max_schmid_factor_grains(
-                                                                            cpo_data_position,
-                                                                            properties,
-                                                                            write_raw_cpo[property_i].first,
-                                                                            grain) << " ";
+                          }
+                          case Output::RRSS:
+                          {
+                            string_stream_content_raw << cpo_particle_property.get_tau_max_schmid_factor_grains(
+                                                        cpo_data_position,
+                                                        properties,
+                                                        write_raw_cpo[property_i].first,
+                                                        grain) << " ";
                             break;
-                           }
-                           case Output::DeformationMechanismFactor:
-                           { string_stream_content_raw << cpo_particle_property.get_def_mech_factor_grains(
-                                                                            cpo_data_position,
-                                                                            properties,
-                                                                            write_raw_cpo[property_i].first,
-                                                                            grain) << " ";
+                          }
+                          case Output::DeformationMechanismFactor:
+                          {
+                            string_stream_content_raw << cpo_particle_property.get_def_mech_factor_grains(
+                                                        cpo_data_position,
+                                                        properties,
+                                                        write_raw_cpo[property_i].first,
+                                                        grain) << " ";
                             break;
-                           }
-                           case Output::RecrystalizationIncrement:
-                           { string_stream_content_raw << cpo_particle_property.get_del_rx_grains(
-                                                                            cpo_data_position,
-                                                                            properties,
-                                                                            write_raw_cpo[property_i].first,
-                                                                            grain) << " ";
+                          }
+                          case Output::RecrystalizationIncrement:
+                          {
+                            string_stream_content_raw << cpo_particle_property.get_del_rx_grains(
+                                                        cpo_data_position,
+                                                        properties,
+                                                        write_raw_cpo[property_i].first,
+                                                        grain) << " ";
                             break;
-                           }
-                           case Output::ParentGrain:
-                           { string_stream_content_raw << cpo_particle_property.get_parent_grain_grains(
-                                                                            cpo_data_position,
-                                                                            properties,
-                                                                            write_raw_cpo[property_i].first,
-                                                                            grain) << " ";
+                          }
+                          case Output::ParentGrain:
+                          {
+                            string_stream_content_raw << cpo_particle_property.get_parent_grain_grains(
+                                                        cpo_data_position,
+                                                        properties,
+                                                        write_raw_cpo[property_i].first,
+                                                        grain) << " ";
                             break;
-                           }
-                           case Output::AccumulatedStrain:
-                           { string_stream_content_raw << cpo_particle_property.get_accumulated_strain_grains(
-                                                                            cpo_data_position,
-                                                                            properties,
-                                                                            write_raw_cpo[property_i].first,
-                                                                            grain) << " ";
+                          }
+                          case Output::AccumulatedStrain:
+                          {
+                            string_stream_content_raw << cpo_particle_property.get_accumulated_strain_grains(
+                                                        cpo_data_position,
+                                                        properties,
+                                                        write_raw_cpo[property_i].first,
+                                                        grain) << " ";
                             break;
-                           }
+                          }
                           default:
                             Assert(false, ExcMessage("Internal error: raw CPO postprocess case not found."));
                             break;
@@ -591,87 +597,95 @@ namespace aspect
                             break;
                           }
                           case Output::EulerAngles:
-                          { Assert(compute_raw_euler_angles == true,
+                          {
+                            Assert(compute_raw_euler_angles == true,
                                    ExcMessage("Internal error: writing out raw Euler angles, without them being computed."));
                             string_stream_content_draw_volume_weighting << weighted_euler_angles[write_draw_volume_weighted_cpo[property_i].first][grain][0] << " "
                                                                         <<  weighted_euler_angles[write_draw_volume_weighted_cpo[property_i].first][grain][1] << " "
                                                                         <<  weighted_euler_angles[write_draw_volume_weighted_cpo[property_i].first][grain][2] << " ";
                             break;
                           }
-                           case Output::VolumeDerivative:
-                           { string_stream_content_draw_volume_weighting << cpo_particle_property.get_volume_fraction_derivatives_grains(
-                                                                            cpo_data_position,
-                                                                            properties,
-                                                                            write_raw_cpo[property_i].first,
-                                                                            grain) << " ";
+                          case Output::VolumeDerivative:
+                          {
+                            string_stream_content_draw_volume_weighting << cpo_particle_property.get_volume_fraction_derivatives_grains(
+                                                                          cpo_data_position,
+                                                                          properties,
+                                                                          write_raw_cpo[property_i].first,
+                                                                          grain) << " ";
                             break;
-                           }
-                           case Output::DislocationDensity:
-                           {
+                          }
+                          case Output::DislocationDensity:
+                          {
                             const std::array<double,4>dislocation_density = cpo_particle_property.get_dislocation_density_grains(cpo_data_position,
                                                                             properties,
                                                                             write_raw_cpo[property_i].first,
                                                                             grain);
-                           string_stream_content_draw_volume_weighting  <<   dislocation_density[0] << " "
-                                                                        <<   dislocation_density[1] << " "
-                                                                        <<   dislocation_density[2] << " "
-                                                                        <<   dislocation_density[3] << " ";
+                            string_stream_content_draw_volume_weighting  <<   dislocation_density[0] << " "
+                                                                         <<   dislocation_density[1] << " "
+                                                                         <<   dislocation_density[2] << " "
+                                                                         <<   dislocation_density[3] << " ";
                             break;
-                           }
-                           case Output::SchmidFactor:
-                           { string_stream_content_draw_volume_weighting << cpo_particle_property.get_max_schmid_factor_grains(
-                                                                            cpo_data_position,
-                                                                            properties,
-                                                                            write_raw_cpo[property_i].first,
-                                                                            grain) << " ";
+                          }
+                          case Output::SchmidFactor:
+                          {
+                            string_stream_content_draw_volume_weighting << cpo_particle_property.get_max_schmid_factor_grains(
+                                                                          cpo_data_position,
+                                                                          properties,
+                                                                          write_raw_cpo[property_i].first,
+                                                                          grain) << " ";
                             break;
-                           }
-                           case Output::RRSS:
-                           { string_stream_content_draw_volume_weighting << cpo_particle_property.get_tau_max_schmid_factor_grains(
-                                                                            cpo_data_position,
-                                                                            properties,
-                                                                            write_raw_cpo[property_i].first,
-                                                                            grain) << " ";
+                          }
+                          case Output::RRSS:
+                          {
+                            string_stream_content_draw_volume_weighting << cpo_particle_property.get_tau_max_schmid_factor_grains(
+                                                                          cpo_data_position,
+                                                                          properties,
+                                                                          write_raw_cpo[property_i].first,
+                                                                          grain) << " ";
                             break;
-                           }
-                           case Output::DeformationMechanismFactor:
-                           { string_stream_content_draw_volume_weighting << cpo_particle_property.get_def_mech_factor_grains(
-                                                                            cpo_data_position,
-                                                                            properties,
-                                                                            write_raw_cpo[property_i].first,
-                                                                            grain) << " ";
+                          }
+                          case Output::DeformationMechanismFactor:
+                          {
+                            string_stream_content_draw_volume_weighting << cpo_particle_property.get_def_mech_factor_grains(
+                                                                          cpo_data_position,
+                                                                          properties,
+                                                                          write_raw_cpo[property_i].first,
+                                                                          grain) << " ";
                             break;
-                           }
-                           case Output::RecrystalizationIncrement:
-                           { string_stream_content_draw_volume_weighting << cpo_particle_property.get_del_rx_grains(
-                                                                            cpo_data_position,
-                                                                            properties,
-                                                                            write_raw_cpo[property_i].first,
-                                                                            grain) << " ";
+                          }
+                          case Output::RecrystalizationIncrement:
+                          {
+                            string_stream_content_draw_volume_weighting << cpo_particle_property.get_del_rx_grains(
+                                                                          cpo_data_position,
+                                                                          properties,
+                                                                          write_raw_cpo[property_i].first,
+                                                                          grain) << " ";
                             break;
-                           }
-                           case Output::ParentGrain:
-                           { string_stream_content_draw_volume_weighting << cpo_particle_property.get_parent_grain_grains(
-                                                                            cpo_data_position,
-                                                                            properties,
-                                                                            write_raw_cpo[property_i].first,
-                                                                            grain) << " ";
+                          }
+                          case Output::ParentGrain:
+                          {
+                            string_stream_content_draw_volume_weighting << cpo_particle_property.get_parent_grain_grains(
+                                                                          cpo_data_position,
+                                                                          properties,
+                                                                          write_raw_cpo[property_i].first,
+                                                                          grain) << " ";
                             break;
-                           }
-                           case Output::AccumulatedStrain:
-                           { string_stream_content_draw_volume_weighting << cpo_particle_property.get_accumulated_strain_grains(
-                                                                            cpo_data_position,
-                                                                            properties,
-                                                                            write_raw_cpo[property_i].first,
-                                                                            grain) << " ";
+                          }
+                          case Output::AccumulatedStrain:
+                          {
+                            string_stream_content_draw_volume_weighting << cpo_particle_property.get_accumulated_strain_grains(
+                                                                          cpo_data_position,
+                                                                          properties,
+                                                                          write_raw_cpo[property_i].first,
+                                                                          grain) << " ";
                             break;
-                           }
-                          
+                          }
+
                           default:
-                           {
+                          {
                             Assert(false, ExcMessage("Internal error: raw CPO postprocess case not found."));
                             break;
-                           } 
+                          }
                         }
                     }
                   string_stream_content_draw_volume_weighting << std::endl;
