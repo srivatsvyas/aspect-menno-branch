@@ -584,10 +584,7 @@ namespace aspect
                                                              const double dt,
                                                              const std::pair<std::vector<double>, std::vector<Tensor<2,3>>> &derivatives) const
       {
-        switch (cpo_derivative_algorithm)
-          {
-            case CPODerivativeAlgorithm::drex_2004:
-            {
+
               double sum_volume_fractions = 0;
               Tensor<2,3> rotation_matrix;
               for (unsigned int grain_i = 0; grain_i < n_grains; ++grain_i)
@@ -612,42 +609,6 @@ namespace aspect
               Assert(sum_volume_fractions != 0, ExcMessage("The sum of all grain volume fractions of a mineral is equal to zero. This should not happen."));
               return sum_volume_fractions;
 
-              break;
-            }
-
-            case CPODerivativeAlgorithm::drexpp:
-            {
-              double sum_volume_fractions = 0;
-              Tensor<2,3> rotation_matrix;
-              for (unsigned int grain_i = 0; grain_i < n_grains; ++grain_i)
-                {
-                  // Do the volume fraction of the grain
-                  Assert(std::isfinite(get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i)),ExcMessage("volume_fractions[grain_i] is not finite before it is set."));
-                  double volume_fraction_grains = get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i);
-                  //volume_fraction_grains =  volume_fraction_grains + dt * volume_fraction_grains * derivatives.first[grain_i];
-                  volume_fraction_grains =  volume_fraction_grains + dt * derivatives.first[grain_i];
-                  set_volume_fractions_grains(cpo_index,data,mineral_i,grain_i, volume_fraction_grains);
-                  Assert(std::isfinite(get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i)),ExcMessage("volume_fractions[grain_i] is not finite. grain_i = "
-                         + std::to_string(grain_i) + ", volume_fractions[grain_i] = " + std::to_string(get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i))
-                         + ", derivatives.first[grain_i] = " + std::to_string(derivatives.first[grain_i])));
-
-                  sum_volume_fractions += get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i);
-
-                  // Do the rotation matrix for this grain
-                  rotation_matrix = get_rotation_matrix_grains(cpo_index,data,mineral_i,grain_i);
-                  rotation_matrix += dt * rotation_matrix * derivatives.second[grain_i];
-                  set_rotation_matrix_grains(cpo_index,data,mineral_i,grain_i,rotation_matrix);
-                }
-
-              Assert(sum_volume_fractions != 0, ExcMessage("The sum of all grain volume fractions of a mineral is equal to zero. This should not happen."));
-              return sum_volume_fractions;
-
-              break;
-            }
-
-            default:
-              break;
-          }
       }
 
 
@@ -727,8 +688,6 @@ namespace aspect
                 {
                   sum_of_volumes += get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i);
                 }
-
-              //std::cout<<"Sum of volumes = "<<sum_of_volumes<<std::endl;
 
               for (unsigned int grain_i = 0; grain_i < n_grains; ++grain_i)
                 {
@@ -967,46 +926,6 @@ namespace aspect
                                                                         (constants::gas_constant * temperature ))) *
                                                            std::pow(differential_stress,p_dis.stress_exponent);
                 }
-
-              // now compute the normal viscosity to be able to compute the stress
-              // Create the material model inputs and outputs to
-              // retrieve the current viscosity.
-              /*
-                            MaterialModel::MaterialModelInputs<dim> in = MaterialModel::MaterialModelInputs<dim>(1, compositions.size());
-                            in.pressure[0] = pressure;
-                            in.temperature[0] = temperature;
-                            in.position[0] = position;
-                            in.strain_rate[0] = strain_rate;
-                            in.composition[0] = compositions;
-
-                            in.requested_properties = MaterialModel::MaterialProperties::viscosity;
-
-                            MaterialModel::MaterialModelOutputs<dim> out(1.,
-                                                                         this -> n_compositional_fields());
-
-                            this -> get_material_model().evaluate(in,out);
-
-                            // Compressive stress is positive in geosciences applications.
-                            SymmetricTensor<2, dim> stress = pressure * unit_symmetric_tensor<dim>();
-
-                            // Add elastic stresses if existent.
-                            AssertThrow(this->get_parameters().enable_elasticity == false, ExcMessage("Elasticity not supported when computing the CPO stress"));
-
-                            const double eta = out.viscosities[0];
-
-                            stress += -2. * eta * deviatoric_strain_rate;
-
-                            // Compute the deviatoric stress tensor after elastic stresses were added.
-                            const SymmetricTensor<2, dim> deviatoric_stress = deviator(stress);
-
-                            // Compute the second moment invariant of the deviatoric stress
-                            // in the same way as the second moment invariant of the deviatoric
-                            // strain rate is computed in the viscoplastic material model.
-                            // TODO to check if this is valid for the compressible case.
-
-                            const std::array<double, dim> eigenvalues = dealii::eigenvalues(deviatoric_stress);
-                            const double differential_stress = eigenvalues[0] - eigenvalues[dim -1];
-                            std::cout<<"differential stress = "<<differential_stress<<std::endl;*/
 
               return compute_derivatives_drexpp(cpo_index,
                                                 data,
