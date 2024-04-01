@@ -1370,23 +1370,6 @@ namespace aspect
                 schmid_factor_max[grain_i] = *std::max_element(schmid_factor.begin(), schmid_factor.end());
                 set_max_schmid_factor_grains(cpo_index,data,mineral_i,grain_i,schmid_factor_max[grain_i]);
 
-                /*if(get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i) > 0)
-                {
-                  accumulated_strain[grain_i] = get_accumulated_strain_grains(cpo_index,data,mineral_i,grain_i);
-                  for (unsigned int slip_system_i = 0; slip_system_i < 4; ++slip_system_i)
-                  {
-                    if(tau[slip_system_i] < 4)
-                      {
-                        accumulated_strain[grain_i]+= std::abs(bigI[slip_system_i]) * this->get_timestep();
-                      }
-                  }
-                  set_accumulated_strain_grains(cpo_index,data,mineral_i,grain_i,accumulated_strain[grain_i]);
-                }
-                else
-                {
-                  accumulated_strain[grain_i] = 0;
-                }*/
-                //std::cout<<"bulk strain = "<<deviatoric_strain_rate * this->get_time()<<"\n";
                 // here we find the indices starting at the largest value and ending at the smallest value
                 // and assign them to special variables. Because all the variables are absolute values,
                 // we can set them to a negative value to ignore them. This should be faster then deleting
@@ -1486,7 +1469,6 @@ namespace aspect
                                                    + ", nucleation_efficiency = " + std::to_string(nucleation_efficiency) + "."));
               }
             set_dislocation_density_grains(cpo_index,data,mineral_i,grain_i,dislocation_density);
-            //std::cout<<"Strain energy of grain "<<grain_i<<" = "<<strain_energy[grain_i] <<"\n";
           }
 
         for (unsigned int grain_i = 0; grain_i < n_grains; ++grain_i)
@@ -1502,20 +1484,20 @@ namespace aspect
                   {
                     //std::cout<<"grain size for grain "<<grain_i<<" = "<< std::cbrt((3/(4*numbers::PI)) * grain_volume)<<"\n";
                     std::vector<double> diffusion_strain_rates(volume_fractions.size(),std::numeric_limits<double>::quiet_NaN());
-                    std::vector<double> composite_strain_rates(volume_fractions.size(),std::numeric_limits<double>::quiet_NaN());
+                    std::vector<double> effective_strain_rates(volume_fractions.size(),std::numeric_limits<double>::quiet_NaN());
                     std::vector<double> dis_strain_rates(volume_fractions.size(),std::numeric_limits<double>::quiet_NaN());
-                    //std::vector<double> dislocation_viscosities(volume_fractions.size(),std::numeric_limits<double>::quiet_NaN());
+
                     for (unsigned int composition = 0; composition < volume_fractions.size(); ++composition)
                       {
                         dis_strain_rates[composition] = dislocation_strain_rates[composition];
                         diffusion_strain_rates[composition] = diffusion_pre_strain_rates[composition] * std::pow(2 * std::pow((3/(4*numbers::PI)) * grain_volume, 0.33),-1 * diffusion_grain_size_exponent[composition]);
-                        composite_strain_rates[composition] =(diffusion_strain_rates[composition] + dis_strain_rates[composition]);
+                        effective_strain_rates[composition] =(diffusion_strain_rates[composition] + dis_strain_rates[composition]);
                       }
                     const double dislocation_strain_rate = MaterialModel::MaterialUtilities::average_value(volume_fractions, dis_strain_rates, MaterialModel::MaterialUtilities::harmonic);
-                    const double composite_strain_rate = MaterialModel::MaterialUtilities::average_value(volume_fractions, composite_strain_rates, MaterialModel::MaterialUtilities::harmonic);
+                    const double effective_strain_rate = MaterialModel::MaterialUtilities::average_value(volume_fractions, composite_strain_rates, MaterialModel::MaterialUtilities::harmonic);
 
-                    grain_boundary_sliding_fractions[grain_i] = dislocation_strain_rate/composite_strain_rate;
-                    // std::cout<<"grain boundary fractions for grain "<<grain_i<<" = "<<grain_boundary_sliding_fractions[grain_i]<<"\n";
+                    grain_boundary_sliding_fractions[grain_i] = dislocation_strain_rate/effective_strain_rate;
+
                     AssertThrow(grain_boundary_sliding_fractions[grain_i]>0.0, ExcMessage("diffusion strain-rate larger than total strain-rate."
                                                                                           "composite_viscosity = " + std::to_string(composite_strain_rate)
                                                                                           + ", diffusion_viscosity = " + std::to_string(dislocation_strain_rate)
