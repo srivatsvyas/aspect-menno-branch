@@ -68,6 +68,7 @@ namespace aspect
       CrystalPreferredOrientation<dim>::compute_random_rotation_matrix(Tensor<2,3> &rotation_matrix) const
       {
         const double dt = this -> get_time();
+        
         // This function is based on an article in Graphic Gems III, written by James Arvo, Cornell University (p 116-120).
         // The original code can be found on  http://www.realtimerendering.com/resources/GraphicsGems/gemsiii/rand_rotation.c
         // and is licenced according to this website with the following licence:
@@ -84,13 +85,21 @@ namespace aspect
         // first generate three random numbers between 0 and 1 and multiply them with 2 PI or 2 for z. Note that these are not the same as phi_1, theta and phi_2.
 
         boost::random::uniform_real_distribution<double> uniform_distribution(0,1);
-        double one = uniform_distribution(this->random_number_generator);
-        double two = uniform_distribution(this->random_number_generator);
+        double one   = uniform_distribution(this->random_number_generator);
+        double two   = uniform_distribution(this->random_number_generator);
         double three = uniform_distribution(this->random_number_generator);
 
-        double theta = 2.0 * M_PI * one; // Rotation about the pole (Z)
+        /*double theta = 2.0 * M_PI * one; // Rotation about the pole (Z)
         double phi   =  2.0 * M_PI * two; // For direction of pole deflection.
-        double z     =   2.0 * three; //For magnitude of pole deflection.
+        double z     =   2.0 * three; //For magnitude of pole deflection.*/
+        boost::random::uniform_real_distribution<double> uniform_distribution1(-0.0833,0.0833);
+        boost::random::uniform_real_distribution<double> uniform_distribution2(0.0,0.03);
+        double rand_def = uniform_distribution1(this->random_number_generator);
+        //double rand_ang = uniform_distribution2(this->random_number_generator);
+
+        double theta = dt != 0.0 ? 2 *M_PI * rand_def  :2.0 * M_PI * one; // Rotation about the pole (Z)
+        double phi   = dt != 0.0 ? 0 : 2.0 * M_PI * two; // For direction of pole deflection.
+        double z     = dt != 0.0 ? 0 : 2.0 * three; //For magnitude of pole deflection.
 
         // SV : have to come up with a solution to create a misorientation of 10 degrees or more for olivine new grains.
         // SV : maybe write a separate block of code in the recrystalize_grains function to initialize the new grains with a misorientation wrt to the parent grain.
@@ -1209,19 +1218,8 @@ namespace aspect
               }
             
 
-            //size_t n_recrystalized_grains = std::floor(recrystalization_fractions[grain_i]* (grain_volume/recrystalized_grain_volume[grain_i]));
-            double n_recrystalized_grains;
-            if(grain_volume != 0.0)
-            {
-              n_recrystalized_grains = recrystalization_fractions[grain_i] * (grain_volume/recrystalized_grain_volume[grain_i]);
-              if(n_recrystalized_grains < 0.01)
-              n_recrystalized_grains = 0.0;
-            }
-            else 
-              n_recrystalized_grains = 0.0;
-           
-            const int n_recrystalized_grains_counter = std::floor(n_recrystalized_grains);
-
+            size_t n_recrystalized_grains = std::floor(recrystalization_fractions[grain_i]* (grain_volume/recrystalized_grain_volume[grain_i]));
+            
             if (n_recrystalized_grains > 0)
               { 
                 double grain_volume_left = grain_volume - (n_recrystalized_grains * recrystalized_grain_volume[grain_i]);
@@ -1242,36 +1240,31 @@ namespace aspect
 
                 // compute the volume of n_recrystalized_grains+1 smallest grains
                 double replaced_grain_volume = 0.0;
-                for (unsigned int recrystalize_grain_i = 0; recrystalize_grain_i < n_recrystalized_grains_counter+2; ++recrystalize_grain_i)
+                for (unsigned int recrystalize_grain_i = 0; recrystalize_grain_i < n_recrystalized_grains + 1 ; ++recrystalize_grain_i)
                   {
                     replaced_grain_volume += get_volume_fractions_grains(cpo_index,data,mineral_i,permutation_vector[permutation_vector_counter+recrystalize_grain_i]);
                   }
 
                 set_volume_fractions_grains(cpo_index,data,mineral_i,permutation_vector[permutation_vector_counter],replaced_grain_volume);
 
-                for (unsigned int recrystalize_grain_i = 0; recrystalize_grain_i < n_recrystalized_grains_counter+1; ++recrystalize_grain_i)
+                for (unsigned int recrystalize_grain_i = 0; recrystalize_grain_i < n_recrystalized_grains; ++recrystalize_grain_i)
                   {
-                    if(recrystalize_grain_i < n_recrystalized_grains_counter)
-                    {
-                      set_volume_fractions_grains(cpo_index,data,mineral_i,permutation_vector[permutation_vector_counter],recrystalized_grain_volume[grain_i]);
-                    }
-                    else
-                    {
-                     set_volume_fractions_grains(cpo_index,data,mineral_i,permutation_vector[permutation_vector_counter],(n_recrystalized_grains - n_recrystalized_grains_counter) * recrystalized_grain_volume[grain_i]); 
-                    }
+                     set_volume_fractions_grains(cpo_index,data,mineral_i,permutation_vector[permutation_vector_counter],recrystalized_grain_volume[grain_i]);
                       
                     Tensor<2,3> random_rotation_matrix;
                     Tensor<2,3> new_orientation_tensor;
                     this->compute_random_rotation_matrix(random_rotation_matrix);
-                    new_orientation_tensor = random_rotation_matrix * main_rotation_matrix * transpose(random_rotation_matrix);
+                    
+                    new_orientation_tensor =  random_rotation_matrix * dominant_slip_system[grain_i] * transpose(random_rotation_matrix);
+
                     for (size_t i = 0; i < 3; i++)
                       for (size_t j = 0; j < 3; j++)
                         Assert(abs(new_orientation_tensor[i][j]) <= 1.0,
                                ExcMessage("rotation_matrix[" + std::to_string(i) + "][" + std::to_string(j) +
-                                          "] is larger than one: " + std::to_string(random_rotation_matrix[i][j]) + " (" + std::to_string(random_rotation_matrix[i][j]-1.0) + "). rotation_matrix = \n"
-                                          + std::to_string(random_rotation_matrix[0][0]) + " " + std::to_string(random_rotation_matrix[0][1]) + " " + std::to_string(random_rotation_matrix[0][2]) + "\n"
-                                          + std::to_string(random_rotation_matrix[1][0]) + " " + std::to_string(random_rotation_matrix[1][1]) + " " + std::to_string(random_rotation_matrix[1][2]) + "\n"
-                                          + std::to_string(random_rotation_matrix[2][0]) + " " + std::to_string(random_rotation_matrix[2][1]) + " " + std::to_string(random_rotation_matrix[2][2])));
+                                          "] is larger than one: " + std::to_string(new_orientation_tensor[i][j]) + " (" + std::to_string(new_orientation_tensor[i][j]-1.0) + "). rotation_matrix = \n"
+                                          + std::to_string(new_orientation_tensor[0][0]) + " " + std::to_string(new_orientation_tensor[0][1]) + " " + std::to_string(new_orientation_tensor[0][2]) + "\n"
+                                          + std::to_string(new_orientation_tensor[1][0]) + " " + std::to_string(new_orientation_tensor[1][1]) + " " + std::to_string(new_orientation_tensor[1][2]) + "\n"
+                                          + std::to_string(new_orientation_tensor[2][0]) + " " + std::to_string(new_orientation_tensor[2][1]) + " " + std::to_string(new_orientation_tensor[2][2])));
 
                     // apply deflection TODO: test!
                     set_rotation_matrix_grains(cpo_index,data,mineral_i,permutation_vector[permutation_vector_counter],new_orientation_tensor);
@@ -1459,6 +1452,7 @@ namespace aspect
 
             // compute w (equation 8, Kaminiski & Ribe, 2001)
             // w is the Rotation rate vector of the crystallographic axes of grain
+
             spin_vectors[grain_i] = Tensor<1,3>
                                     (
             {
@@ -1555,6 +1549,7 @@ namespace aspect
             if ( t != 0 )
               {
                 recrystalized_grain_size = A[mineral_i] * std::pow((schmid_factor_max[grain_i] * 2) * differential_stress/1e6, m[mineral_i]);
+                //recrystalized_grain_size = A[mineral_i] * std::pow( differential_stress/1e6, m[mineral_i]);
               }
             else
               {
@@ -1625,9 +1620,10 @@ namespace aspect
             // (Eq. 9, Kaminski & Ribe 2001)
             deriv_a_cosine_matrices[grain_i] = 0;
             const double volume_fraction_grain = get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i);
-            if ((volume_fraction_grain != 0) && (accumulated_strain[grain_i] != 0))
+            if ((volume_fraction_grain != 0) && (rx_now[grain_i] == false))
               {
                 deriv_a_cosine_matrices[grain_i] =  def_mech_factor[grain_i] * Utilities::Tensors::levi_civita<3>() * spin_vectors[grain_i];
+                //deriv_a_cosine_matrices[grain_i] =  Utilities::Tensors::levi_civita<3>() * spin_vectors[grain_i];
                 sum_volume += volume_fraction_grain;
                 // volume averaged strain energy
                 strain_energy[grain_i] = def_mech_factor[grain_i] * strain_energy[grain_i];
