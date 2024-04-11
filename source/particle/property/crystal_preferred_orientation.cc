@@ -490,7 +490,14 @@ namespace aspect
                         Assert(!std::isnan(rotation_matrix[i][j]), ExcMessage("rotation_matrix is nan before orthogonalization."));
                       }
                   }
-
+                /*for (size_t i = 0; i < 3; ++i)
+                  {
+                    for (size_t j = 0; j < 3; ++j)
+                      {
+                        std::cout<<rotation_matrix[i][j]<<"\t";
+                      }
+                      std::cout<<"\n";
+                  }*/
                 rotation_matrix = dealii::project_onto_orthogonal_tensors(rotation_matrix);
                 for (size_t i = 0; i < 3; ++i)
                   for (size_t j = 0; j < 3; ++j)
@@ -1255,9 +1262,11 @@ namespace aspect
                     Tensor<2,3> new_orientation_tensor;
                     this->compute_random_rotation_matrix(random_rotation_matrix);
                     
-                    new_orientation_tensor =  random_rotation_matrix * dominant_slip_system[grain_i] * transpose(random_rotation_matrix);
-
-                    for (size_t i = 0; i < 3; i++)
+                    new_orientation_tensor =  random_rotation_matrix * main_rotation_matrix * transpose(random_rotation_matrix);
+                    //std::cout<<"for grain "<<permutation_vector[permutation_vector_counter]<<" RR ="<<random_rotation_matrix[0][0]<<","<<random_rotation_matrix[0][1]<<","<<random_rotation_matrix[0][2]<<","<<random_rotation_matrix[1][0]<<","<<random_rotation_matrix[1][1]<<","<<random_rotation_matrix[1][2]<<","<<random_rotation_matrix[2][0]<<","<<random_rotation_matrix[2][1]<<","<<random_rotation_matrix[2][2]<<"\n";
+                    //std::cout<<"for grain "<<permutation_vector[permutation_vector_counter]<<" DSS = "<<dominant_slip_system[grain_i][0][0]<<","<<dominant_slip_system[grain_i][0][1]<<","<<dominant_slip_system[grain_i][0][2]<<","<<dominant_slip_system[grain_i][1][0]<<","<<dominant_slip_system[grain_i][1][1]<<","<<dominant_slip_system[grain_i][1][2]<<","<<dominant_slip_system[grain_i][2][0]<<","<<dominant_slip_system[grain_i][2][1]<<","<<dominant_slip_system[grain_i][2][2]<<"\n";
+                    //std::cout<<"grain "<<permutation_vector[permutation_vector_counter]<<" nucleated from grain "<<grain_i<<std::endl;
+                      for (size_t i = 0; i < 3; i++)
                       for (size_t j = 0; j < 3; j++)
                         Assert(abs(new_orientation_tensor[i][j]) <= 1.0,
                                ExcMessage("rotation_matrix[" + std::to_string(i) + "][" + std::to_string(j) +
@@ -1518,7 +1527,8 @@ namespace aspect
                                                                                           + ", diffusion_viscosity = " + std::to_string(dislocation_strain_rate)
                                                                                           + ", grain_boundary_sliding_fractions[grain_i] = " + std::to_string(grain_boundary_sliding_fractions[grain_i])
                                                                                          ));
-                    def_mech_factor[grain_i] = grain_boundary_sliding_fractions[grain_i];
+                    //def_mech_factor[grain_i] = grain_boundary_sliding_fractions[grain_i];
+                    def_mech_factor[grain_i] = 1;
                   }
               }
 
@@ -1546,10 +1556,11 @@ namespace aspect
 
         for (unsigned int grain_i = 0; grain_i < n_grains; grain_i++)
           {
-            if ( t != 0 )
+            //if (( t != 0 ) && (schmid_factor_max[grain_i] >= 0.2))
+            if ( t != 0 )  
               {
-                recrystalized_grain_size = A[mineral_i] * std::pow((schmid_factor_max[grain_i] * 2) * differential_stress/1e6, m[mineral_i]);
-                //recrystalized_grain_size = A[mineral_i] * std::pow( differential_stress/1e6, m[mineral_i]);
+                //recrystalized_grain_size = A[mineral_i] * std::pow((differential_stress/1e6) / (schmid_factor_max[grain_i] * 2), m[mineral_i]);
+                recrystalized_grain_size = A[mineral_i] * std::pow((differential_stress/1e6)* (schmid_factor_max[grain_i]* 2), m[mineral_i]);
               }
             else
               {
@@ -1574,17 +1585,19 @@ namespace aspect
 
         */
         const double strain = this->get_time() *std::sqrt(std::max(-second_invariant(deviatoric_strain_rate), 0.));
-
+        const double d_gamma = this->get_timestep() *std::sqrt(std::max(-second_invariant(deviatoric_strain_rate), 0.));
+        std::cout<<"strain increment = "<<this->get_timestep() *std::sqrt(std::max(-second_invariant(deviatoric_strain_rate), 0.))<<"\n";
         const double avrami_exponent = 1.48;
         const double strain_critical = 0.;
         const double rate_of_transformation = 0.15;
+        double avrami_slope;
         if (strain_critical <  strain )
           {
-            recrystalization_increment = avrami_exponent * rate_of_transformation * std::pow( strain - strain_critical , avrami_exponent - 1 ) * exp(-1 * (rate_of_transformation * std::pow(( strain -strain_critical) , avrami_exponent )));
+           avrami_slope = avrami_exponent * rate_of_transformation * std::pow( strain - strain_critical , avrami_exponent - 1 ) * exp(-1 * (rate_of_transformation * std::pow(( strain -strain_critical) , avrami_exponent )));
           }
         else
           {
-            recrystalization_increment = 0.0;
+            avrami_slope = 0.0;
           }
 
 
@@ -1593,7 +1606,7 @@ namespace aspect
           {
             if (recrystalization_increment != 0.)
               {
-                recrystalized_fractions[grain_i] = (def_mech_factor[grain_i]  * recrystalization_increment);
+                recrystalized_fractions[grain_i] = (def_mech_factor[grain_i]  * avrami_slope * d_gamma);
               }
             else
               {
@@ -1623,7 +1636,6 @@ namespace aspect
             if ((volume_fraction_grain != 0) && (rx_now[grain_i] == false))
               {
                 deriv_a_cosine_matrices[grain_i] =  def_mech_factor[grain_i] * Utilities::Tensors::levi_civita<3>() * spin_vectors[grain_i];
-                //deriv_a_cosine_matrices[grain_i] =  Utilities::Tensors::levi_civita<3>() * spin_vectors[grain_i];
                 sum_volume += volume_fraction_grain;
                 // volume averaged strain energy
                 strain_energy[grain_i] = def_mech_factor[grain_i] * strain_energy[grain_i];
