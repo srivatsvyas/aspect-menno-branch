@@ -642,6 +642,12 @@ namespace aspect
             case CPODerivativeAlgorithm::drex_2004:
             {
               double sum_volume_fractions = 0;
+
+              //double sum_v =0;
+              //for(unsigned int grain_i = 0; grain_i < n_grains; ++grain_i)
+              {
+                //sum_v += get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i);
+              }
               Tensor<2,3> cosine_ref;
               for (unsigned int grain_i = 0; grain_i < n_grains; ++grain_i)
                 {
@@ -656,8 +662,9 @@ namespace aspect
                                                               + std::to_string(grain_i) + ", volume_fractions[grain_i] = " + std::to_string(get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i))
                                                               + ", derivatives.first[grain_i] = " + std::to_string(derivatives.first[grain_i])));
 
-                      vf_new = get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i) + dt * vf_new * derivatives.first[grain_i];
-                      set_volume_fractions_derivatives_grains(cpo_index,data,mineral_i,grain_i, dt * vf_old * derivatives.first[grain_i]);
+                      vf_new = get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i) + dt * (vf_new) * derivatives.first[grain_i];
+                      //vf_new = get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i) + dt * (vf_new/sum_v) * derivatives.first[grain_i];
+                      set_volume_fractions_derivatives_grains(cpo_index,data,mineral_i,grain_i, derivatives.first[grain_i]);
                       Assert(std::isfinite(get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i)),ExcMessage("volume_fractions[grain_i] is not finite. grain_i = "
                              + std::to_string(grain_i) + ", volume_fractions[grain_i] = " + std::to_string(get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i))
                              + ", derivatives.first[grain_i] = " + std::to_string(derivatives.first[grain_i])));
@@ -1232,8 +1239,8 @@ namespace aspect
                 double grain_volume_left = grain_volume - (n_recrystalized_grains * recrystalized_grain_volume[grain_i]);
                 set_volume_fractions_grains(cpo_index,data,mineral_i,grain_i,grain_volume_left);
                 
-                const double strain_energy_density = strain_energy[grain_i]/grain_volume;
-                strain_energy[grain_i] = strain_energy_density * grain_volume_left;
+                //const double strain_energy_density = strain_energy[grain_i]/grain_volume;
+                //strain_energy[grain_i] = strain_energy_density * grain_volume_left;
                 
                 Tensor<2,3> main_rotation_matrix = get_rotation_matrix_grains(cpo_index,data,mineral_i,grain_i);
                 for (size_t i = 0; i < 3; i++)
@@ -1587,13 +1594,15 @@ namespace aspect
         const double strain = this->get_time() *std::sqrt(std::max(-second_invariant(deviatoric_strain_rate), 0.));
         const double d_gamma = this->get_timestep() *std::sqrt(std::max(-second_invariant(deviatoric_strain_rate), 0.));
         std::cout<<"strain increment = "<<this->get_timestep() *std::sqrt(std::max(-second_invariant(deviatoric_strain_rate), 0.))<<"\n";
+        std::cout<<"strain = "<<strain<<"\n";
         const double avrami_exponent = 1.48;
         const double strain_critical = 0.;
         const double rate_of_transformation = 0.15;
         double avrami_slope;
         if (strain_critical <  strain )
           {
-           avrami_slope = avrami_exponent * rate_of_transformation * std::pow( strain - strain_critical , avrami_exponent - 1 ) * exp(-1 * (rate_of_transformation * std::pow(( strain -strain_critical) , avrami_exponent )));
+           //avrami_slope = avrami_exponent * rate_of_transformation * std::pow( strain - strain_critical , avrami_exponent - 1 ) * exp(-1 * (rate_of_transformation * std::pow(( strain -strain_critical) , avrami_exponent )));
+            avrami_slope = 0.2;
           }
         else
           {
@@ -1607,6 +1616,7 @@ namespace aspect
             if (recrystalization_increment != 0.)
               {
                 recrystalized_fractions[grain_i] = (def_mech_factor[grain_i]  * avrami_slope * d_gamma);
+                //recrystalized_fractions[grain_i] = avrami_slope ;
               }
             else
               {
