@@ -299,7 +299,11 @@ namespace aspect
                     string_stream_content_raw << "mineral_" << write_raw_cpo[property_i].first << "_Accumulated_strain" << " ";
                     break;
                   }
-
+                  case Output::RecrystalizationFraction:
+                  {
+                    string_stream_content_raw << "mineral_" << write_raw_cpo[property_i].first << "_Rx_fractions" << " ";
+                    break;
+                  }
                   default:
                     Assert(false, ExcMessage("Internal error: raw CPO postprocess case not found."));
                     break;
@@ -378,6 +382,11 @@ namespace aspect
                   case Output::AccumulatedStrain:
                   {
                     string_stream_content_draw_volume_weighting << "mineral_" << write_raw_cpo[property_i].first << "_Accumulated_strain" << " ";
+                    break;
+                  }
+                  case Output::RecrystalizationFraction:
+                  {
+                    string_stream_content_draw_volume_weighting << "mineral_" << write_raw_cpo[property_i].first << "_Rx_fractions" << " ";
                     break;
                   }
 
@@ -534,6 +543,15 @@ namespace aspect
                                                         grain) << " ";
                             break;
                           }
+                          case Output::RecrystalizationFraction:
+                          {
+                            string_stream_content_raw << cpo_particle_property.get_rx_fractions_grains(
+                                                        cpo_data_position,
+                                                        properties,
+                                                        write_raw_cpo[property_i].first,
+                                                        grain) << " ";
+                            break;
+                          }
                           default:
                             Assert(false, ExcMessage("Internal error: raw CPO postprocess case not found."));
                             break;
@@ -680,7 +698,15 @@ namespace aspect
                                                                           grain) << " ";
                             break;
                           }
-
+                          case Output::RecrystalizationFraction:
+                          {
+                            string_stream_content_draw_volume_weighting << cpo_particle_property.get_rx_fractions_grains(
+                                                        cpo_data_position,
+                                                        properties,
+                                                        write_raw_cpo[property_i].first,
+                                                        grain) << " ";
+                            break;
+                          }
                           default:
                           {
                             Assert(false, ExcMessage("Internal error: raw CPO postprocess case not found."));
@@ -818,12 +844,14 @@ namespace aspect
         return Output::RRSS;
       if (string == "Deformation mechanism factor")
         return Output::DeformationMechanismFactor;
-      if (string == "Recrystalization fractions")
+      if (string == "Recrystalization increment")
         return Output::RecrystalizationIncrement;
       if (string == "Parent grain")
         return Output::ParentGrain;
       if (string == "Accumulated strain")
         return Output::AccumulatedStrain;
+      if (string == "Rx fractions")
+        return Output::RecrystalizationFraction;  
 
       return Output::not_found;
     }

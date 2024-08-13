@@ -108,7 +108,7 @@ namespace aspect
          */
         enum class Output
         {
-          VolumeFraction, RotationMatrix, EulerAngles, VolumeDerivative, DislocationDensity,SchmidFactor,RRSS,DeformationMechanismFactor,RecrystalizationIncrement,ParentGrain,AccumulatedStrain, not_found
+          VolumeFraction, RotationMatrix, EulerAngles, VolumeDerivative, DislocationDensity,SchmidFactor,RRSS,DeformationMechanismFactor,RecrystalizationIncrement,ParentGrain,AccumulatedStrain,RecrystalizationFraction, not_found
         };
 
         /**
