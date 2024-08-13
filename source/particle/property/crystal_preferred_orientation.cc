@@ -92,10 +92,7 @@ namespace aspect
         /*double theta = 2.0 * M_PI * one; // Rotation about the pole (Z)
         double phi   =  2.0 * M_PI * two; // For direction of pole deflection.
         double z     =   2.0 * three; //For magnitude of pole deflection.*/
-        boost::random::uniform_real_distribution<double> uniform_distribution1(-0.0833,0.0833);
-        boost::random::uniform_real_distribution<double> uniform_distribution2(0.0,0.03);
-        double rand_def = uniform_distribution2(this->random_number_generator);
-        //double rand_ang = uniform_distribution2(this->random_number_generator);
+
 
         double theta = 2.0 * M_PI * one; // Rotation about the pole (Z)
         double phi   = 2.0 * M_PI * two; // For direction of pole deflection.
@@ -1302,21 +1299,6 @@ namespace aspect
                 for (unsigned int recrystalize_grain_i = 0; recrystalize_grain_i < n_recrystalized_grains+1; ++recrystalize_grain_i)
                   {
                     set_volume_fractions_grains(cpo_index,data,mineral_i,permutation_vector[permutation_vector_counter],recrystalized_grain_volume[grain_i]);
-                    //Tensor<2,3> random_rotation_matrix;
-                    //Tensor<2,3> new_orientation_tensor;
-                    //this->compute_random_rotation_matrix(random_rotation_matrix);
-                    
-                    //new_orientation_tensor =  random_rotation_matrix * main_rotation_matrix * transpose(random_rotation_matrix);
-                    /*  for (size_t i = 0; i < 3; i++)
-                      for (size_t j = 0; j < 3; j++)
-                        Assert(abs(new_orientation_tensor[i][j]) <= 1.0,
-                               ExcMessage("rotation_matrix[" + std::to_string(i) + "][" + std::to_string(j) +
-                                          "] is larger than one: " + std::to_string(new_orientation_tensor[i][j]) + " (" + std::to_string(new_orientation_tensor[i][j]-1.0) + "). rotation_matrix = \n"
-                                          + std::to_string(new_orientation_tensor[0][0]) + " " + std::to_string(new_orientation_tensor[0][1]) + " " + std::to_string(new_orientation_tensor[0][2]) + "\n"
-                                          + std::to_string(new_orientation_tensor[1][0]) + " " + std::to_string(new_orientation_tensor[1][1]) + " " + std::to_string(new_orientation_tensor[1][2]) + "\n"
-                                          + std::to_string(new_orientation_tensor[2][0]) + " " + std::to_string(new_orientation_tensor[2][1]) + " " + std::to_string(new_orientation_tensor[2][2])));
-                    */
-                    // apply deflection TODO: test!
                     set_rotation_matrix_grains(cpo_index,data,mineral_i,permutation_vector[permutation_vector_counter],main_rotation_matrix);
                     strain_energy[permutation_vector[permutation_vector_counter]] = 0.0;
                     rx_now[permutation_vector[permutation_vector_counter]] = true;
@@ -1673,7 +1655,7 @@ namespace aspect
             if ((volume_fraction_grain != 0.0) )
               {
                 // Different than D-Rex. Here we actually only compute the derivative and do not multiply it with the volume_fractions. We do that when we advect.
-                 const double surface_energy = (4*interfacial_energy)/volume_fraction_grain;
+                const double surface_energy = (4*interfacial_energy)/volume_fraction_grain;
                 deriv_volume_fractions[grain_i] = get_volume_fraction_mineral(cpo_index,data,mineral_i) *  drexpp_mobility[mineral_i] * ((mean_strain_energy - strain_energy[grain_i]) - surface_energy);
               }
             else
