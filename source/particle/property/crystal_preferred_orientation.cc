@@ -1139,6 +1139,10 @@ namespace aspect
             {
               cpo_derivative_algorithm = CPODerivativeAlgorithm::drex_2004;
             }
+          else if (temp_cpo_derivative_algorithm == "D-Rex++")
+            {
+              cpo_derivative_algorithm = CPODerivativeAlgorithm::drexpp;
+            }
           else
             {
               AssertThrow(false,
@@ -1248,8 +1252,64 @@ namespace aspect
             threshold_GBS = prm.get_double("Threshold GBS");
           }
           prm.leave_subsection();
+
+          prm.enter_subsection("D-Rex++");
+          {
+            n_grains_init = prm.get_integer("Number of initial grains");
+            volume_fractions_minerals = Utilities::string_to_double(dealii::Utilities::split_string_list(prm.get("Volume fraction minerals")));
+            stress_exponent = prm.get_double("Stress exponents");
+            exponent_p = prm.get_double("Dislocation piezometry exponent");
+            mobility = prm.get_double("Mobility");
+            nucleation_efficiency = prm.get_double("Nucleation efficiency");
+            initial_grain_size = prm.get_double("Initial grain size");
+          }
+          prm.leave_subsection();
+
         }
         prm.leave_subsection ();
+
+        prm.enter_subsection("Material model");
+        {
+          prm.enter_subsection("Visco Plastic");
+          {
+            // Phase transition parameters
+            phase_function.initialize_simulator (this->get_simulator());
+            phase_function.parse_parameters (prm);
+
+            // Retrieve the list of composition names
+            const std::vector<std::string> list_of_composition_names = this->introspection().get_composition_names();
+
+            // Establish that a background field is required here
+            const bool has_background_field = true;
+
+            thermal_diffusivities = Utilities::parse_map_to_double_array (prm.get("Thermal diffusivities"),
+                                                                          list_of_composition_names,
+                                                                          has_background_field,
+                                                                          "Thermal diffusivities");
+
+            define_conductivities = prm.get_bool ("Define thermal conductivities");
+
+            thermal_conductivities = Utilities::parse_map_to_double_array (prm.get("Thermal conductivities"),
+                                                                           list_of_composition_names,
+                                                                           has_background_field,
+                                                                           "Thermal conductivities");
+
+            rheology_diff = std::make_unique<MaterialModel::Rheology::DiffusionCreep<dim>>();
+            rheology_diff->initialize_simulator (this->get_simulator());
+            rheology_diff->parse_parameters(prm, std::make_unique<std::vector<unsigned int>>(phase_function.n_phases_for_each_composition()));
+
+            rheology_disl = std::make_unique<MaterialModel::Rheology::DislocationCreep<dim>>();
+            rheology_disl->initialize_simulator (this->get_simulator());
+            rheology_disl->parse_parameters(prm, std::make_unique<std::vector<unsigned int>>(phase_function.n_phases_for_each_composition()));
+
+            rheology_vipl = std::make_unique<MaterialModel::Rheology::ViscoPlastic<dim>>();
+            rheology_vipl->initialize_simulator (this->get_simulator());
+            rheology_vipl->parse_parameters(prm, std::make_unique<std::vector<unsigned int>>(phase_function.n_phases_for_each_composition()));
+            min_strain_rate = rheology_vipl->min_strain_rate;
+          }
+          prm.leave_subsection();
+        }
+        prm.leave_subsection();
       }
     }
   }

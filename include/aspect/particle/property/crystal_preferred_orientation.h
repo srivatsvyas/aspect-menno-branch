@@ -23,6 +23,12 @@
 
 #include <aspect/particle/property/interface.h>
 #include <aspect/simulator_access.h>
+#include <aspect/particle/property/interface.h>
+#include <aspect/material_model/rheology/diffusion_creep.h>
+#include <aspect/material_model/rheology/dislocation_creep.h>
+#include <aspect/material_model/rheology/visco_plastic.h>
+#include <aspect/material_model/utilities.h>
+#include <aspect/material_model/interface.h>
 #include <array>
 
 DEAL_II_DISABLE_EXTRA_DIAGNOSTICS
@@ -83,7 +89,7 @@ namespace aspect
        */
       enum class CPODerivativeAlgorithm
       {
-        spin_tensor, drex_2004
+        spin_tensor, drex_2004, drexpp
       };
 
       /**
@@ -274,7 +280,20 @@ namespace aspect
                                         const Tensor<2,3> &velocity_gradient_tensor,
                                         const std::array<double,4> ref_resolved_shear_stress,
                                         const bool prevent_nondimensionalization = false) const;
-
+          
+          std::pair<std::vector<double>, std::vector<Tensor<2,3>>>
+          compute_derivatives_drexpp(const unsigned int cpo_index,
+                                     const ArrayView<double> &data,
+                                     const unsigned int mineral_i,
+                                     const SymmetricTensor<2,3> &strain_rate_3d,
+                                     const SymmetricTensor<2,3> &velocity_gradient_tensor,
+                                     const std::array<double,4> ref_resolved_shear_stress,
+                                     const double differential_stress,
+                                     const SymmetricTensor<2,dim> &deviatoric_strain_rate,
+                                     const std::vector<double> &volume_fractions,
+                                     const std::vector<double> &diffusion_pre_strain_rates,
+                                     const std::vector<double> &diffusion_grain_size_exponent,
+                                     const std::vector<double> &dislocation_strain_rates) const;
 
           /**
            * Declare the parameters this class takes through input files.
@@ -635,11 +654,37 @@ namespace aspect
           double mobility;
 
           /**
+           * Added parameters that are required to start D-Rex++
+           */
+          int n_grains_init;
+          double initial_grain_size;
+          /**
            * Sets which type of initial grain model is used to create the gain sizes and orientations
            */
           CPOInitialGrainsModel initial_grains_model;
 
           /** @} */
+
+          std::unique_ptr<MaterialModel::Rheology::DiffusionCreep<dim>> rheology_diff;
+          std::unique_ptr<MaterialModel::Rheology::DislocationCreep<dim>> rheology_disl;
+          std::unique_ptr<MaterialModel::Rheology::ViscoPlastic<dim>> rheology_vipl;
+          double min_strain_rate;
+          std::vector<double> thermal_diffusivities;
+
+          /**
+           * Whether to use user-defined thermal conductivities instead of thermal diffusivities.
+           */
+
+          bool define_conductivities;
+
+          std::vector<double> thermal_conductivities;
+
+          /**
+           * Object that handles phase transitions.
+           */
+
+          MaterialModel::MaterialUtilities::PhaseFunction<dim> phase_function;
+
 
       };
     }
