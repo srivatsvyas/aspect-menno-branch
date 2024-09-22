@@ -245,20 +245,20 @@ namespace aspect
                                   volume_fractions_grains[mineral_i][grain_i] = grain_size;
                                 }
                               else
+                              {
                                 volume_fractions_grains[mineral_i][grain_i] = initial_grain_size;
+                              }
                             }
                           else
                             {
                               volume_fractions_grains[mineral_i][grain_i] = 0.;
                             }
-
-                          this->compute_random_rotation_matrix(rotation_matrices_grains[mineral_i][grain_i]);
                           volume_derivative_grains[mineral_i][grain_i] = 0;
                           for (unsigned int i = 0; i<4; ++i)
                             {
                               dislocation_density_grains[mineral_i][grain_i][i] = 0.0;
                             }
-
+                          this->compute_random_rotation_matrix(rotation_matrices_grains[mineral_i][grain_i]);
                           schmid_factor_max_grains[mineral_i][grain_i] = 0.;
                           tau_schmid_factor_max_grains[mineral_i][grain_i] = 0;
                           def_mech_factor_grains[mineral_i][grain_i] = 0;
@@ -1347,11 +1347,14 @@ namespace aspect
         std::vector<double> accumulated_strain(n_grains);
         std::vector<bool> rx_now(n_grains);
         const double t =this-> get_time();
+        std::vector<double> strain_accumulated(n_grains);
+        std::vector<int> lifetime(n_grains);
         std::vector<std::array<double,4>> schmid_factor(n_grains);
+       
         
         const std::array< double, 3 > eigenvalues = dealii::eigenvalues(strain_rate);
         const double nondimensionalization_value = std::max(std::abs(eigenvalues[0]),std::abs(eigenvalues[2]));
-
+        
         // first compute the strain energy and G for all grains
         for (unsigned int grain_i = 0; grain_i < n_grains; ++grain_i)
           {
@@ -1376,7 +1379,7 @@ namespace aspect
               {
                 const Tensor<1,3> slip_normal_global = rotation_matrix_transposed*slip_normal_reference[slip_system_i];
                 const Tensor<1,3> slip_direction_global = rotation_matrix_transposed*slip_direction_reference[slip_system_i];
-                const Tensor<2,3> slip_cross_product = outer_product(slip_direction_global,slip_normal_global);
+                const Tensor<2,3> slip_cross_product = 0.5 * (outer_product(slip_direction_global,slip_normal_global) + outer_product(slip_normal_global,slip_direction_global));
                 global_slip_system[grain_i][slip_system_i] = slip_cross_product;
                 bigI[slip_system_i] = scalar_product(slip_cross_product,strain_rate);
                 if(this-> get_time() != 0)
@@ -1399,6 +1402,11 @@ namespace aspect
               }
             else
               {
+
+                if(get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i) != 0.0)
+                {
+                  lifetime[grain_i]+= this->get_timestep();
+                }
                 // compute the element wise absolute value of the element wise
                 // division of BigI by tau (tau = ref_resolved_shear_stress).
                 std::array<double,4> q_abs;
@@ -1487,8 +1495,15 @@ namespace aspect
               0.5*(velocity_gradient_tensor[0][2]-velocity_gradient_tensor[2][0]) - 0.5*(schmidt_tensor[0][2]-schmidt_tensor[2][0]) *gamma,
               0.5*(velocity_gradient_tensor[1][0]-velocity_gradient_tensor[0][1]) - 0.5*(schmidt_tensor[1][0]-schmidt_tensor[0][1]) *gamma
             });
-
-            // Compute strain energy for this grain (abbreviated Estr)
+            
+            Tensor<2,3> local_strain_rate;
+            local_strain_rate = (schmidt_tensor * gamma) - (Utilities::Tensors::levi_civita<3>()*spin_vectors[grain_i]);
+            SymmetricTensor<2,3>strrate;
+            strrate = symmetrize (local_strain_rate);
+            const std::array< double, 3 > eigen_values = dealii::eigenvalues(strrate);
+            const double strr_values= std::max(std::abs(eigenvalues[0]),std::abs(eigenvalues[2]));
+            strain_accumulated[grain_i] = strr_values * lifetime[grain_i];
+            // Compute sstrain energy for this grain (abbreviated Estr)
             // For olivine: DREX only sums over 1-3. But Christopher Thissen's matlab
             // code (https://github.com/cthissen/Drex-MATLAB) corrected
             // this and writes each term using the indices created when calculating bigI.
