@@ -273,7 +273,7 @@ namespace aspect
                                      const SymmetricTensor<2,3> &strain_rate_3d,
                                      const Tensor<2,3> &velocity_gradient_tensor,
                                      const std::array<double,4> ref_resolved_shear_stress,
-                                     const double differential_stress,
+                                     const SymmetricTensor<2,3> &deviatoric_stress,
                                      const SymmetricTensor<2,dim> &deviatoric_strain_rate,
                                      const std::vector<double> &volume_fractions,
                                      const std::vector<double> &diffusion_pre_strain_rates,
@@ -592,7 +592,7 @@ namespace aspect
            * @param grain_i The grain to get the value of the volume fraction of.
            */
           inline
-          double get_max_schmid_factor_grains(const unsigned int cpo_data_position,
+          bool get_max_schmid_factor_grains(const unsigned int cpo_data_position,
                                               const ArrayView<const double> &data,
                                               const unsigned int mineral_i,
                                               const unsigned int grain_i) const
@@ -614,7 +614,7 @@ namespace aspect
                                             const ArrayView<double> &data,
                                             const unsigned int mineral_i,
                                             const unsigned int grain_i,
-                                            const double max_schmid_factor) const
+                                            const bool max_schmid_factor) const
           {
             data[cpo_data_position + 17 + grain_i * 22 + mineral_i * (n_grains * 22 + 2)] = max_schmid_factor;
           }
