@@ -261,7 +261,7 @@ namespace aspect
                               dislocation_density_grains[mineral_i][grain_i][i] = 0.0;
                             }
                           this->compute_random_rotation_matrix(rotation_matrices_grains[mineral_i][grain_i]);
-                          schmid_factor_max_grains[mineral_i][grain_i] = 0.;
+                          schmid_factor_max_grains[mineral_i][grain_i] = 0;
                           tau_schmid_factor_max_grains[mineral_i][grain_i] = 0;
                           def_mech_factor_grains[mineral_i][grain_i] = 0;
                           del_rx[mineral_i][grain_i] = 0.;
@@ -1254,7 +1254,7 @@ namespace aspect
             
             const double left_overs = volume - (n_recrystalized_grains * rx_volume);
             const double left_over_grain_size = 2.0 * std::pow((left_overs* (3.0/4.0) * (1.0/numbers::PI)),(1.0/3.0));
-            std::cout<<"no of grains from grain "<<grain_i<<" = "<<n_recrystalized_grains<<std::endl;
+            //std::cout<<"no of grains from grain "<<grain_i<<" = "<<n_recrystalized_grains<<std::endl;
             //std::cout<<"volume before rx = "<<volume<<"\t volume after rx = "<<left_overs<<"\trx volume ="<<(n_recrystalized_grains * rx_volume)<<std::endl;
             //std::cout<<"grain size before rx = "<<grain_size<<"\tno rx = "<<n_recrystalized_grains<<"\t leftover grain size ="<<left_over_grain_size<<std::endl;
 
@@ -1286,7 +1286,7 @@ namespace aspect
             */
             
             //set_rotation_matrix_grains(cpo_index,data,mineral_i,permutation_vector[permutation_vector_counter],rotation_matrix);            
-            set_max_schmid_factor_grains(cpo_index,data,mineral_i,permutation_vector[permutation_vector_counter],true);
+            set_max_schmid_factor_grains(cpo_index,data,mineral_i,permutation_vector[permutation_vector_counter],1);
             set_accumulated_strain_grains(cpo_index,data,mineral_i,permutation_vector[permutation_vector_counter],0.0);
             set_parent_grain_grains(cpo_index,data,mineral_i,permutation_vector[permutation_vector_counter],0.0);
             rx_now[permutation_vector[permutation_vector_counter]] = true;
@@ -1299,7 +1299,7 @@ namespace aspect
               rotation_matrix = get_rotation_matrix_grains(cpo_index,data,mineral_i,grain_i);
               set_rotation_matrix_grains(cpo_index,data,mineral_i,permutation_vector[permutation_vector_counter],rotation_matrix);            
               set_volume_fractions_grains(cpo_index,data,mineral_i,permutation_vector[permutation_vector_counter],recrystalized_grain_size[grain_i]);
-              set_max_schmid_factor_grains(cpo_index,data,mineral_i,permutation_vector[permutation_vector_counter],true);
+              set_max_schmid_factor_grains(cpo_index,data,mineral_i,permutation_vector[permutation_vector_counter],1);
               set_accumulated_strain_grains(cpo_index,data,mineral_i,permutation_vector[permutation_vector_counter],0.0);
               set_parent_grain_grains(cpo_index,data,mineral_i,permutation_vector[permutation_vector_counter],0.0);
               rx_now[permutation_vector[permutation_vector_counter]] = true;
@@ -1463,7 +1463,7 @@ namespace aspect
                   }
 
                 set_tau_max_schmid_factor_grains(cpo_index,data,mineral_i,grain_i,tau[indices[0]]);
-                set_max_schmid_factor_grains(cpo_index,data,mineral_i,grain_i,false); 
+                //set_max_schmid_factor_grains(cpo_index,data,mineral_i,grain_i,0); 
                 // compute the ordered beta vector, which is the relative slip rates of the active slip systems.
                 // Test whether the max element is not equal to zero.
                 Assert(bigI[indices[0]] != 0.0, ExcMessage("Internal error: bigI is zero."));
@@ -1612,7 +1612,7 @@ namespace aspect
             }
           else 
            gnd = 0.0;
-        //set_parent_grain_grains(cpo_index,data,mineral_i,grain_i,gnd);
+         set_parent_grain_grains(cpo_index,data,mineral_i,grain_i,0.);
         }
 
         /*
@@ -1625,7 +1625,7 @@ namespace aspect
              The values for olivine is taken from Van der Waal (1993)
              The values for pyroxene is taken from Speciale et al (2021)
            */
-
+        std::cout<<"differential stress = "<<differential_stress/1e6<<std::endl;
         double bulk_piezometer;
         std::array<double, 2> A = {{0.015,std::pow(10,3.8)}};
         std::array<double, 2> m = {{-1.33, -1.28}};
@@ -1647,6 +1647,7 @@ namespace aspect
             if((get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i) > 0.) && (get_accumulated_strain_grains(cpo_index,data,mineral_i,grain_i) >= 0.25))
               {
                 recrystalized_fractions[grain_i] = get_del_rx_grains(cpo_index,data,mineral_i,grain_i);
+                const double avrami_slope = 1.48 * 0.1 * std::pow(get_accumulated_strain_grains(cpo_index,data,mineral_i,grain_i) - 0.25, 0.48) * exp(-1* 0.1 *std::pow(get_accumulated_strain_grains(cpo_index,data,mineral_i,grain_i) - 0.25,1.48));
                 recrystalized_fractions[grain_i] += (avrami_slope_input * (get_accumulated_strain_grains(cpo_index,data,mineral_i,grain_i) - 0.25));
                 if (recrystalized_fractions[grain_i] > 1.0)
                   recrystalized_fractions[grain_i] = 1.0;
