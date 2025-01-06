@@ -258,12 +258,12 @@ namespace aspect
                               {
                                 volume_fractions_grains[mineral_i][grain_i] = initial_grain_size;
                               }
-                              grain_status[mineral_i][grain_i] = 7;
+                              grain_status[mineral_i][grain_i] = 0;
                             }
                           else
                             {
                               volume_fractions_grains[mineral_i][grain_i] = 0.;
-                              grain_status[mineral_i][grain_i] = 0;
+                              grain_status[mineral_i][grain_i] = -1;
                             }
                           for (unsigned int i = 0; i<4; ++i)
                             {
@@ -336,6 +336,7 @@ namespace aspect
                   {
                     data.emplace_back(dislocation_density_grains[mineral_i][grain_i][slip_system_i]);
                   }
+                      data.emplace_back(grain_status[mineral_i][grain_i]);
                 data.emplace_back(dominant_slip_system[mineral_i][grain_i]);
                 data.emplace_back(strain_energy[mineral_i][grain_i]);
                 data.emplace_back(surface_energy[mineral_i][grain_i]);
@@ -344,7 +345,6 @@ namespace aspect
                 data.emplace_back(strain_accumulated[mineral_i][grain_i]);
                 data.emplace_back(dis_inv[mineral_i][grain_i]);
                 data.emplace_back(dif_inv[mineral_i][grain_i]);
-                data.emplace_back(grain_status[mineral_i][grain_i]);
                 data.emplace_back(strain_difference[mineral_i][grain_i]);
                 data.emplace_back(lifetime[mineral_i][grain_i]);
               }
