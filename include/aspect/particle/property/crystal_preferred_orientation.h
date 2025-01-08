@@ -772,7 +772,7 @@ namespace aspect
           * @param grain_i The grain to get the value of the volume fraction of.
           */
           inline
-          double get_slip_rate(const unsigned int cpo_data_position,
+          int get_slip_rate(const unsigned int cpo_data_position,
                                                const ArrayView<const double> &data,
                                                const unsigned int mineral_i,
                                                const unsigned int grain_i) const
@@ -794,7 +794,7 @@ namespace aspect
                                              const ArrayView<double> &data,
                                              const unsigned int mineral_i,
                                              const unsigned int grain_i,
-                                             const double slip_rate) const
+                                             const int slip_rate) const
           {
             data[cpo_data_position + 22 + grain_i * 26 + mineral_i * (n_grains * 26 + 2)] = slip_rate;
           }
@@ -1014,7 +1014,7 @@ namespace aspect
           double initialize_grains_with_normal_distribution_standard_deviation;
 
           unsigned int n_grains;
-
+          unsigned int n_grains_buffer;
           unsigned int n_minerals;
 
           /**
