@@ -1243,6 +1243,10 @@ namespace aspect
         std::vector<std::size_t> buffer_permutation_vector;
         int buffer_vector_counter = 0;
         double n_rx_cumulative = 0;
+        double replaced_grains= 0;
+        double buffer_grains= 0;
+        double empty_buffer_slots = 0;
+
         // Creating a vector of indices to track which slots are empty
         for(unsigned int i = 0;  i < n_grains ; ++i)
          {
@@ -1256,6 +1260,12 @@ namespace aspect
           }
          }
         
+        for(unsigned int i = n_grains - n_grains_buffer;  i < n_grains ; ++i)
+        {
+          if(get_volume_fractions_grains(cpo_index,data,mineral_i,i) == 0.)
+            ++empty_buffer_slots;   
+        }
+
         std::sort(buffer_permutation_vector.begin(), buffer_permutation_vector.end(),
                   [&](std::size_t grain_i, std::size_t grain_j)
         {
@@ -1279,22 +1289,13 @@ namespace aspect
          }
          else
             n_recrystalized_grains =0;
-
-         set_slip_rate(cpo_index,data,mineral_i,grain_i,n_recrystalized_grains);
          
-         n_rx_cumulative += n_recrystalized_grains;
-         
-         double unrx_portion;
-          if(volume != 0.)
-            unrx_portion = (volume -(n_recrystalized_grains * rx_volume)/volume)*recrystalization_fractions[grain_i];
-          
-          set_rx_fraction(cpo_index,data,mineral_i,grain_i,unrx_portion);
-          double temp_grains = n_recrystalized_grains;
           set_dif_invariant(cpo_index,data,mineral_i,grain_i,grain_size);
           set_slip_rate(cpo_index,data,mineral_i,grain_i,n_recrystalized_grains);  
 
           double left_overs = volume - (n_recrystalized_grains * rx_volume);
           double left_over_grain_size = 2.0 * std::pow((left_overs* (3.0/4.0) * (1.0/numbers::PI)),(1.0/3.0));
+
 
           if(n_recrystalized_grains >= 1.)
           {
@@ -1305,7 +1306,16 @@ namespace aspect
               left_overs = volume - (n_recrystalized_grains * rx_volume);
               left_over_grain_size = 2.0 * std::pow((left_overs* (3.0/4.0) * (1.0/numbers::PI)),(1.0/3.0));
             }  
-                        
+
+            double unrx_portion;
+          if(volume != 0.)
+            unrx_portion = (volume -(n_recrystalized_grains * rx_volume)/volume)*recrystalization_fractions[grain_i];
+          
+          set_rx_fraction(cpo_index,data,mineral_i,grain_i,unrx_portion);
+         
+            set_slip_rate(cpo_index,data,mineral_i,grain_i,n_recrystalized_grains);
+            n_rx_cumulative += n_recrystalized_grains;
+            double temp_grains = n_recrystalized_grains;              
             set_volume_fractions_grains(cpo_index,data,mineral_i,grain_i,left_over_grain_size);
             set_dis_invariant(cpo_index,data,mineral_i,grain_i,left_over_grain_size);
             if(permutation_vector.size() >= n_recrystalized_grains)
@@ -1331,17 +1341,34 @@ namespace aspect
               }
             else
               {
-                 for (unsigned int recrystalize_grain_i = 0; recrystalize_grain_i < temp_grains  ; ++recrystalize_grain_i)
+                 for (unsigned int recrystalize_grain_i = 0; recrystalize_grain_i < temp_grains + 1  ; ++recrystalize_grain_i)
                    {
-                    if(get_volume_fractions_grains(cpo_index,data,mineral_i,buffer_permutation_vector[buffer_vector_counter + recrystalize_grain_i]) !=0.)
+                    if((buffer_vector_counter + recrystalize_grain_i >= n_grains_buffer) && (empty_buffer_slots <= 0))
+                        {
+                          std::cout<<"i am sortig again"<<std::endl;
+                          std::sort(buffer_permutation_vector.begin(), buffer_permutation_vector.end(),
+                              [&](std::size_t grain_i, std::size_t grain_j)
+                                {
+                                    return get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i) < get_volume_fractions_grains(cpo_index,data,mineral_i,grain_j);
+                                });
+                          
+                          buffer_vector_counter = 0;
+                        }
+
+                    if(get_volume_fractions_grains(cpo_index,data,mineral_i,buffer_permutation_vector[buffer_vector_counter + recrystalize_grain_i]) <= 1e-6)
                       {
                         replaced_grain_volume +=(4.0/3.0) * numbers::PI * std::pow(0.5 * get_volume_fractions_grains(cpo_index,data,mineral_i,buffer_permutation_vector[buffer_vector_counter+recrystalize_grain_i]),3.0);
                         set_volume_fractions_grains(cpo_index,data,mineral_i,buffer_permutation_vector[buffer_vector_counter+recrystalize_grain_i],0.);
                       }
                     }
+                 
+                 if(replaced_grain_volume > 2 * rx_volume)
+                    {
+                      replaced_grain_volume = 2 * rx_volume;
+                    }
 
                  if(replaced_grain_volume > 0.0)
-                   {
+                   { 
                       set_volume_fractions_grains(cpo_index,data,mineral_i,buffer_permutation_vector[buffer_vector_counter],2.0 *std::pow((3.0/4.0)*(replaced_grain_volume/numbers::PI),1./3.));
                       rotation_matrix = get_rotation_matrix_grains(cpo_index,data,mineral_i,buffer_permutation_vector[buffer_vector_counter]);
                       set_rotation_matrix_grains(cpo_index,data,mineral_i,buffer_permutation_vector[buffer_vector_counter],rotation_matrix);            
@@ -1352,9 +1379,11 @@ namespace aspect
                       set_strain_energy(cpo_index,data,mineral_i,buffer_permutation_vector[buffer_vector_counter], 0.0);
                       set_surface_energy(cpo_index,data,mineral_i,buffer_permutation_vector[buffer_vector_counter], 0.0);
                       buffer_vector_counter++;
+                      ++replaced_grains;                      
                    }
                   for (unsigned int recrystalize_grain_i = 0; recrystalize_grain_i < temp_grains  ; ++recrystalize_grain_i)
                    {
+                    
                       set_volume_fractions_grains(cpo_index,data,mineral_i,buffer_permutation_vector[buffer_vector_counter],recrystalized_grain_size[grain_i]);
                       rotation_matrix = get_rotation_matrix_grains(cpo_index,data,mineral_i,buffer_permutation_vector[buffer_vector_counter]);
                       set_rotation_matrix_grains(cpo_index,data,mineral_i,buffer_permutation_vector[buffer_vector_counter],rotation_matrix);            
@@ -1365,11 +1394,13 @@ namespace aspect
                       set_strain_energy(cpo_index,data,mineral_i,buffer_permutation_vector[buffer_vector_counter], 0.0);
                       set_surface_energy(cpo_index,data,mineral_i,buffer_permutation_vector[buffer_vector_counter], 0.0);
                       buffer_vector_counter++;
+                      ++buffer_grains;
+                      --empty_buffer_slots;
                    }
               }  
           }
        }
-       std::cout<<"total grains rxxed during this timestep = "<<n_rx_cumulative<<std::endl;
+       std::cout<<"total grains rxxed during this timestep = "<<n_rx_cumulative<<"\t grains replaced = "<<replaced_grains<<"\t buffer slots = "<<buffer_grains<<std::endl;
       }
 
       template <int dim>
