@@ -752,7 +752,7 @@ namespace aspect
                       else
                         vf_new = vf_new;
 
-                      set_strain_difference(cpo_index,data,mineral_i,grain_i,dt * (((4./3.) * numbers::PI * std::pow(vf_new* 0.5,3))/sum_of_volumes) * derivatives.first[grain_i]);
+                      //set_strain_difference(cpo_index,data,mineral_i,grain_i,dt * (((4./3.) * numbers::PI * std::pow(vf_new* 0.5,3))/sum_of_volumes) * derivatives.first[grain_i]);
                       Assert(std::isfinite(get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i)),ExcMessage("volume_fractions[grain_i] is not finite. grain_i = "
                              + std::to_string(grain_i) + ", volume_fractions[grain_i] = " + std::to_string(get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i))
                              + ", derivatives.first[grain_i] = " + std::to_string(derivatives.first[grain_i])));
@@ -970,10 +970,10 @@ namespace aspect
                     R : gas constant
                     T : temperature
                   */
-                  diffusion_pre_strain_rates[composition] = std::exp((-1*(p_dif.activation_energy +
+                  diffusion_pre_strain_rates[composition] = p_dif.prefactor * std::exp((-1*(p_dif.activation_energy +
                                                                           pressure*p_dif.activation_volume)/
                                                                       (constants::gas_constant*temperature)));
-
+//                  std::cout<<"gas constant = "<<constants::gas_constant<<std::endl;
                   diffusion_grain_size_exponent[composition] = p_dif.grain_size_exponent;
 
                   const MaterialModel::Rheology::DislocationCreepParameters p_dis = rheology_disl->compute_creep_parameters(composition,
@@ -1291,8 +1291,7 @@ namespace aspect
             n_recrystalized_grains =0;
          
           set_dif_invariant(cpo_index,data,mineral_i,grain_i,grain_size);
-          set_slip_rate(cpo_index,data,mineral_i,grain_i,n_recrystalized_grains);  
-
+          
           double left_overs = volume - (n_recrystalized_grains * rx_volume);
           double left_over_grain_size = 2.0 * std::pow((left_overs* (3.0/4.0) * (1.0/numbers::PI)),(1.0/3.0));
 
@@ -1312,7 +1311,7 @@ namespace aspect
             unrx_portion = (volume -(n_recrystalized_grains * rx_volume)/volume)*recrystalization_fractions[grain_i];
           
           set_rx_fraction(cpo_index,data,mineral_i,grain_i,unrx_portion);
-         
+          
             set_slip_rate(cpo_index,data,mineral_i,grain_i,n_recrystalized_grains);
             n_rx_cumulative += n_recrystalized_grains;
             double temp_grains = n_recrystalized_grains;              
@@ -1366,6 +1365,11 @@ namespace aspect
                     {
                       replaced_grain_volume = 2 * rx_volume;
                     }
+                 if(replaced_grain_volume < 1e-18)
+                 {
+                      replaced_grain_volume = 0.;
+                    }
+                  
 
                  if(replaced_grain_volume > 0.0)
                    { 
@@ -1459,32 +1463,33 @@ namespace aspect
         // Constants -> the values below are for olivine alone (SV: Do I add the citations?)
         const double shear_modulus = 8.0 * std::pow(10.0,10.0);
         const double burgers_vector = 5.0 * std::pow(10.0,-10.0);
-
+        //std::cout<<"differential stress = "<<differential_stress<<std::endl;
         // Rheology
          // Divvying up the strain rate tensor and velocity gradient tensor into diffusion and dislocation creep
         for (unsigned int grain_i = 0; grain_i < n_grains; ++grain_i)
         {
          if((get_volume_fractions_grains(cpo_index,data, mineral_i, grain_i) > 0.0) && (this->get_time() != 0))
          { 
-          /*
+           const double grain_size = get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i);
            const double diffusion_prefactor = MaterialModel::MaterialUtilities::average_value(volume_fractions, diffusion_pre_strain_rates, MaterialModel::MaterialUtilities::harmonic);
            const double diffusion_exponent = MaterialModel::MaterialUtilities::average_value(volume_fractions,  diffusion_grain_size_exponent, MaterialModel::MaterialUtilities::harmonic);
            const double dislocation_prefactor = MaterialModel::MaterialUtilities::average_value(volume_fractions,  dislocation_strain_rates, MaterialModel::MaterialUtilities::harmonic);
            
            // Calculating diffusion creep strain rate
-           diffusion_strain_rate[grain_i] = diffusion_prefactor * deviatoric_stress * std::pow(get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i), diffusion_exponent);
+           diffusion_strain_rate[grain_i] = ((diffusion_prefactor * differential_stress * std::pow(grain_size, -1*diffusion_exponent))/std::sqrt(std::max(-second_invariant(strain_rate), 0.)))* strain_rate;
            dislocation_strain_rate[grain_i] = strain_rate - diffusion_strain_rate[grain_i];
-          
-           set_dis_invariant(cpo_index,data,mineral_i,grain_i, std::sqrt(std::max(-second_invariant(dislocation_strain_rate[grain_i]), 0.)));
-           set_dif_invariant(cpo_index,data,mineral_i,grain_i, std::sqrt(std::max(-second_invariant(diffusion_strain_rate[grain_i]), 0.)));
+           set_strain_difference(cpo_index,data,mineral_i,grain_i,((diffusion_prefactor * differential_stress * std::pow(get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i), -1*diffusion_exponent))/std::sqrt(std::max(-second_invariant(strain_rate), 0.))));
+           //std::cout<<"diff ratio for grain "<<grain_i<<" = "<<(diffusion_prefactor * differential_stress * std::pow(get_volume_fractions_grains(cpo_index,data,mineral_i,grain_i), -1*diffusion_exponent))<<std::endl;
+           //set_dis_invariant(cpo_index,data,mineral_i,grain_i, std::sqrt(std::max(-second_invariant(dislocation_strain_rate[grain_i]), 0.)));
+           //set_dif_invariant(cpo_index,data,mineral_i,grain_i, std::sqrt(std::max(-second_invariant(diffusion_strain_rate[grain_i]), 0.)));
            
            // Calculating velocity gradient tensor for different mechansims
            diffusion_velocity_gradient[grain_i] = diffusion_strain_rate[grain_i];
            dislocation_velocity_gradient[grain_i] = velocity_gradient_tensor - diffusion_velocity_gradient[grain_i];
-          */
+          
                      
-           dislocation_strain_rate[grain_i] = strain_rate;
-           dislocation_velocity_gradient[grain_i] = velocity_gradient_tensor;
+          // dislocation_strain_rate[grain_i] = strain_rate;
+           //dislocation_velocity_gradient[grain_i] = velocity_gradient_tensor;
          }
          else 
          {
